@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.DS_Store
+
+# model weights and caches never go in git
+*.safetensors
+*.bin
+*.pt
+hf_cache/
+models/
+
+# raw benchmark output (summaries and charts go in docs/studies/)
+results/
+*.jsonl
+
+# local env and tool caches
+.env
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/

@@ -1,0 +1,32 @@
+[project]
+name = "minillm"
+version = "0.0.1"
+description = "LLM inference server built from scratch, one measured optimization at a time"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.4",
+    "transformers>=4.45",
+    "safetensors",
+    "huggingface_hub",
+    "numpy",
+    "fastapi",
+    "uvicorn",
+    "pyzmq",
+    "prometheus-client",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "openai", "matplotlib", "pandas"]
+# CUDA-only kernels. Linux only; never installed on the MacBook.
+cuda = ["flashinfer-python; sys_platform == 'linux'"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
