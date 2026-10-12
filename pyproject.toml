@@ -13,11 +13,12 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pyzmq",
+    "msgpack",
     "prometheus-client",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "openai", "matplotlib", "pandas", "datasets"]
+dev = ["pytest", "openai", "matplotlib", "pandas", "datasets", "httpx"]
 # CUDA-only kernels. Linux only; never installed on the MacBook.
 cuda = ["flashinfer-python; sys_platform == 'linux'"]
 

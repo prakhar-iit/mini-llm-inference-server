@@ -66,38 +66,77 @@ add("M0", "tests/test_layers.py", "test", "python", at_ref(R, "tests/test_layers
     ["`test_rope_score_depends_only_on_relative_position`: restate the property it proves in one sentence."])
 
 # ---------------- M1 ----------------
-add("M1", "src/minillm/model/kv_cache.py", "new", "python", working("src/minillm/model/kv_cache.py"),
+add("M1", "src/minillm/model/kv_cache.py", "new", "python", at_ref("m1", "src/minillm/model/kv_cache.py"),
     "Contiguous per-layer K/V buffers: `append` writes this step's k/v, `advance` moves the write position.",
     ["Compute `bytes_per_token` for Llama-3.1-8B (32 layers, 8 KV heads, head_dim 128) in bf16.",
      "Why does `append` not advance `seq_len`, and who calls `advance`?",
      "What goes wrong in this design when two sequences in a batch have different lengths? (M5 fixes it.)"])
-add("M1", "src/minillm/model/llama.py", "changed", "diff", diff(R, "src/minillm/model/llama.py"),
+add("M1", "src/minillm/model/llama.py", "changed", "diff", git("diff", "-U4", "m0", "m1", "--", "src/minillm/model/llama.py"),
     "The cache threaded through attention, layers and model; positions continue from `seq_len`; `last_only` logits.",
     ["Why is k cached after RoPE instead of before?",
      "What positions does a decode step use, and where are they computed?",
      "How big would full logits be for a 16K-token prompt, and what does `last_only` change?"])
-add("M1", "src/minillm/attention/torch_ref.py", "changed", "diff", diff(R, "src/minillm/attention/torch_ref.py"),
+add("M1", "src/minillm/attention/torch_ref.py", "changed", "diff", git("diff", "-U4", "m0", "m1", "--", "src/minillm/attention/torch_ref.py"),
     "Attention for queries on top of a cache: three cases by Tq vs Tk.",
     ["Draw the mask from `tril(diagonal=tk - tq)` for Tq=3, Tk=6. Which query sees which keys?",
      "Why does a single decode query need no mask at all?"])
-add("M1", "src/minillm/generate.py", "changed", "diff", diff(R, "src/minillm/generate.py"),
+add("M1", "src/minillm/generate.py", "changed", "diff", git("diff", "-U4", "m0", "m1", "--", "src/minillm/generate.py"),
     "`greedy_generate`: one prefill call, then one-token decode calls against the cache.",
     ["Count the forward calls for a 100-token prompt and 50 new tokens, with and without the cache.",
      "Why does the loop return before running a forward pass for the last token?"])
-add("M1", "src/minillm/evals.py", "new", "python", working("src/minillm/evals.py"),
+add("M1", "src/minillm/evals.py", "new", "python", at_ref("m1", "src/minillm/evals.py"),
     "G2 quality eval: WikiText-2 perplexity and few-shot GSM8K.",
     ["Why is perplexity of uniform logits equal to the vocabulary size?",
      "Why are the window's first tokens scored with less context, and why is that fine for a regression check?",
      "Why compute log-softmax in fp32?"])
-add("M1", "benchmarks/s1_prefill_decode.py", "tool", "python", working("benchmarks/s1_prefill_decode.py"),
+add("M1", "benchmarks/s1_prefill_decode.py", "tool", "python", at_ref("m1", "benchmarks/s1_prefill_decode.py"),
     "S1 study script: TTFT and prefill MFU vs prompt length; ITL and decode MBU vs context.",
     ["Check `CostModel.prefill_flops` against the plan's formulas. What does it leave out?",
      "Why does `decode_bytes` grow with context, and by how much per token for the 1B model?"])
-add("M1", "tests/test_kv_cache.py", "test", "python", working("tests/test_kv_cache.py"),
+add("M1", "tests/test_kv_cache.py", "test", "python", at_ref("m1", "tests/test_kv_cache.py"),
     "The cache must change cost, never output: decode, chunked prompts and generation all match a full pass and HF.",
     ["`test_prompt_in_chunks_matches_full_pass` exercises which backend branch, and which later milestones need it?"])
 
-order = {"M0": 0, "M1": 100}
+# ---------------- M2 (in progress: working tree vs m1) ----------------
+add("M2", "src/minillm/engine/protocol.py", "new", "python", working("src/minillm/engine/protocol.py"),
+    "Messages between frontend and engine: AddRequest, Abort, Ready, StepOutputs, as msgpack tagged maps.",
+    ["Why msgpack instead of pickle? Name two reasons from decision 1.",
+     "Why does the engine see token ids only, never text?",
+     "What does `StepOutputs.stats` carry, and who reads it?"])
+add("M2", "src/minillm/engine/core.py", "new", "python", working("src/minillm/engine/core.py"),
+    "The engine core: FIFO queue, one request at a time; each step is a prefill or one decode token.",
+    ["Walk through `step()` for a new request, then for a running one. Where does the GPU work actually finish?",
+     "Why serve one request at a time on purpose? What will S2 show as the arrival rate rises?",
+     "What happens to a request's KV cache when it finishes or is aborted?",
+     "Which timeline stamps does the engine add, and which come from the frontend?"])
+add("M2", "src/minillm/engine/process.py", "new", "python", working("src/minillm/engine/process.py"),
+    "The engine process loop: drain messages, step, send outputs; idle-poll when there's no work.",
+    ["Why is the poll timeout 0 while there is work and 50 ms when idle?",
+     "Why is the step log written only when the engine is idle?",
+     "Why does the frontend start this process with spawn instead of fork?"])
+add("M2", "src/minillm/server/engine_client.py", "new", "python", working("src/minillm/server/engine_client.py"),
+    "The frontend's handle on the engine: one reader task routes outputs to per-request queues; disconnects abort.",
+    ["Trace a request from `generate()` to the first yielded output.",
+     "Why is the Abort sent with NOBLOCK instead of awaited?",
+     "What was the R1 bug, and what does `_abandoned` fix?"])
+add("M2", "src/minillm/server/api.py", "new", "python", working("src/minillm/server/api.py"),
+    "OpenAI-compatible endpoints, SSE streaming, incremental detokenization, timelines, Prometheus metrics.",
+    ["Write the sequence of SSE events for a 3-token streamed completion with include_usage.",
+     "Why does the detokenizer hold back text ending in U+FFFD?",
+     "Which request fields are rejected with 400, and why reject instead of ignoring?",
+     "How is server-side TTFT computed, and how does it differ from the client's TTFT?"])
+add("M2", "src/minillm/server/__main__.py", "new", "python", working("src/minillm/server/__main__.py"),
+    "`python -m minillm.server`: builds the app (which starts the engine process) and runs uvicorn.",
+    ["What do `--step-log` and `--timeline-log` write, and which studies read them?"])
+add("M2", "tests/test_server.py", "test", "python", working("tests/test_server.py"),
+    "End to end on a tiny model: G0 through the API, streaming format, FIFO order, bad requests, R1.",
+    ["How does `test_concurrent_requests_are_served_fifo` prove one-at-a-time serving from timelines alone?",
+     "Why did the reference first disagree with the server (hint: token 2), and which side was right?"])
+add("M2", "tests/test_engine_core.py", "test", "python", working("tests/test_engine_core.py"),
+    "The engine core in-process: FIFO, stop tokens, ignore_eos, aborts, timeline order.",
+    ["Why does the stop-token test expect output up to the FIRST occurrence of the stop token?"])
+
+order = {"M0": 0, "M1": 100, "M2": 200}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i
     m["lines"] = m["code"].count("\n") + 1

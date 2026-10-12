@@ -56,6 +56,14 @@ python -m minillm.device        # prints the device and dtype this machine will 
 hf auth login && python scripts/download_model.py   # Llama-3.2-1B into models/ (gated: request access first)
 ```
 
+Run the server (OpenAI-compatible; the engine runs in its own process):
+
+```bash
+python -m minillm.server --model-dir models/Llama-3.2-1B --port 8000
+curl -N localhost:8000/v1/completions -H 'content-type: application/json' \
+  -d '{"prompt": "The capital of France is", "max_tokens": 20, "stream": true}'
+```
+
 On a CUDA machine, install the CUDA extras as well: `uv pip install -e ".[dev,cuda]"`.
 
 ## Rules
