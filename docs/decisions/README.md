@@ -1,7 +1,7 @@
 # Design decisions
 
 One entry per decision from the plan's "Design review — open decisions" list. Add a row when a
-decision is made; write a short note `NN-<topic>.md` if the reasoning needs more than a line.
+decision is made (the plan's "Implementation order" shows where each one is needed); write a short note `NN-<topic>.md` if the reasoning needs more than a line.
 
 | # | Decision | Needed by | Choice | Date |
 |---|---|---|---|---|
@@ -24,6 +24,6 @@ decision is made; write a short note `NN-<topic>.md` if the reasoning needs more
 | 17 | Cluster cache data vs control plane | P1 | | |
 | 18 | KV compatibility across engines | P1 | | |
 | 19 | Eviction and TTL across tiers | D4 | | |
-| 20 | AWS access and quotas | Phase 3 | | |
-| 21 | Budget per phase | Phase 1 | | |
+| 20 | AWS access and quotas | Phase 0 (G-quota), N1 (P-instances) | | |
+| 21 | Budget per phase | Phase 0 | | |
 | 24 | Phase 5 choices (checkpoint, hardware, EFA all-to-all, weights, budget) | K3 | | |
