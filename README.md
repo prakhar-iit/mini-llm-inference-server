@@ -5,12 +5,14 @@ study that predicts, measures and explains how that step changes latency and thr
 engine is then taken distributed: tensor parallelism, cache-aware routing, prefill/decode
 disaggregation, multi-node serving, and finally a 1T-parameter MoE model (Kimi K2).
 
-Full roadmap: [`docs/distributed_inference_plan.md`](docs/distributed_inference_plan.md).
+Full roadmap, in build order: [`docs/distributed_inference_plan.md`](docs/distributed_inference_plan.md)
+(see "Implementation order" for the step-by-step checklist and "Testing program" for the gates).
 
 ## Status
 
 | Phase | Scope | Status |
 |---|---|---|
+| 0 | Setup: budget, AWS G-quota, Llama access, dev env | Not started |
 | 1a | Core engine M0–M6 (KV cache, server, batching, continuous batching, paged KV, prefix caching) → **v1** | Not started |
 | 1b | M7–M10 (chunked prefill, CUDA graphs, quantization, speculative decoding) → v1.1 | — |
 | 2 | Distributed on one node (TP, router, P/D disaggregation, KV tiering, reliability) | — |
@@ -47,10 +49,11 @@ scripts/aws/       # instance setup and scripted benchmark sessions
 ## Quick start (MacBook)
 
 ```bash
-uv venv && source .venv/bin/activate
+uv venv && source .venv/bin/activate     # Python 3.12, pinned in .python-version
 uv pip install -e ".[dev]"
-pytest -q
+pytest -q -rs                    # skips list unfinished milestone work ("not implemented yet: M0 ...")
 python -m minillm.device        # prints the device and dtype this machine will use
+hf auth login && python scripts/download_model.py   # Llama-3.2-1B into models/ (gated: request access first)
 ```
 
 On a CUDA machine, install the CUDA extras as well: `uv pip install -e ".[dev,cuda]"`.

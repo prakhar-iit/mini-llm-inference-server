@@ -21,3 +21,4 @@ results/
 .ruff_cache/
 .mypy_cache/
 .ipynb_checkpoints/
+.idea/

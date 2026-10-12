@@ -30,3 +30,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: needs downloaded model weights or long runtime (run with: pytest -m slow)"]
+addopts = "-m 'not slow'"
