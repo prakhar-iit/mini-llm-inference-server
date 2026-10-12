@@ -5,12 +5,12 @@ decision is made (the plan's "Implementation order" shows where each one is need
 
 | # | Decision | Needed by | Choice | Date |
 |---|---|---|---|---|
-| 1 | Engine process architecture | M2 | | |
-| 2 | Workload C (agent) spec | M2 | | |
-| 3 | SLO and metric definitions | M2 | | |
-| 4 | Correctness method | M2 | | |
-| 5 | Benchmark client | M2 | | |
-| 6 | Observability | M2 | | |
+| 1 | Engine process architecture | M2 | Frontend + engine core over ZMQ + msgpack; executor interface for per-GPU workers at D1 ([note](01-process-architecture.md)) | 2026-10-11 |
+| 2 | Workload C (agent) spec | M2 | Synthetic generator with sweepable distributions, token-id prompts, seeded JSONL; burstiness fitted to Azure/BurstGPT; Mooncake replay at P1 ([note](02-workload-c.md)) | 2026-10-11 |
+| 3 | SLO and metric definitions | M2 | TTFT p99 ≤ 3 s (A) / 1 s (B, C), TPOT p99 ≤ 50 ms; official tier 8B on A100/H100, L4 tier 1B; client-side open-loop timing ([note](03-slos-and-metrics.md)) | 2026-10-11 |
+| 4 | Correctness method | M2 | Layered: G0 batch-1 exact; G1a fp32 batched exact; G1b bf16 teacher-forced logits within 2× HF's own batch noise; G2 quality ([note](04-correctness.md)) | 2026-10-11 |
+| 5 | Benchmark client | M2 | Own asyncio client for A, B and C; cross-checked against `vllm bench serve` in the GPU session (within ~5%) ([note](05-benchmark-client.md)) | 2026-10-11 |
+| 6 | Observability | M2 | Per-request timeline (returned to client + JSONL), engine step log behind a flag, Prometheus `/metrics`; OpenTelemetry at D2 ([note](06-observability.md)) | 2026-10-11 |
 | 7 | Attention backend and KV layout | M5 | | |
 | 8 | Block-hash spec | M6 | | |
 | 9 | Scheduler policy | M4 | | |

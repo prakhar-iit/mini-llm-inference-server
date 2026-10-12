@@ -13,8 +13,8 @@ comparisons are fair.
 
 | **Mix — A+B** | A and B interleaved (e.g. 30/70 by request) | Both | Scheduler fairness, head-of-line blocking |
 
-A and B can use `vllm bench serve` as the load generator against our OpenAI-compatible server. C needs
-its own generator.
+One in-house client drives all three workloads against any OpenAI-compatible server (ours or vLLM's).
+It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
 
 ## Standard sweeps
 

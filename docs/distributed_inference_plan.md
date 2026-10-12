@@ -54,9 +54,9 @@ step that follows it. A milestone is done when its tests pass and its study note
 3. M0 Generation loop, no KV cache — **G0** greedy match vs HF · S0
 4. M1 KV cache — **G2** quality eval set · S1
 5. ⚑ 1–6 (process architecture, workload C, SLOs, correctness method, benchmark client, observability)
-6. M2 OpenAI-compatible server + benchmark harness + metrics timeline — **G1** logit tolerance,
+6. M2 OpenAI-compatible server + benchmark harness + metrics timeline — G0 through the API,
    **R1** cancellation · S2
-7. M3 Static batching · S3
+7. M3 Static batching — **G1a** fp32 exact, **G1b** bf16 tolerance · S3
 8. ⚑ 9 Scheduler policy
 9. M4 Continuous batching — **R2** overload/backpressure · S4
 10. ⚑ 7 Attention backend and KV layout
@@ -210,7 +210,8 @@ part of `pytest` or the benchmark harness, so a later optimization can't silentl
 | # | Introduced | Test | Pass criterion |
 |---|---|---|---|
 | G0 | M0 | Greedy token match vs Hugging Face, batch 1, same device | Identical tokens for a fixed prompt set (short, long, multilingual, code) |
-| G1 | M2 | Teacher-forced logit comparison vs HF at batch > 1, plus an fp32 test mode (decision 4) | Max abs logit diff under a set tolerance in bf16; exact greedy match in fp32 |
+| G1a | M3 | Batched engine in fp32 vs batch-1 runs (decision 4) | Identical tokens; logits within 1e-4 |
+| G1b | M3, M5, D1 | bf16 teacher-forced logits, batched vs batch-1 reference (decision 4) | KL and max abs logit diff ≤ 2× HF's own batch-1 vs batch-8 noise; top-1 agrees wherever the reference margin > 0.5 |
 | G2 | M1 | Small quality eval: perplexity on a fixed WikiText-2 slice + ~200-question GSM8K subset | Within noise of the HF baseline. Hard gate for M9 (quantization) and K5 |
 
 Speculative decoding (M10) must reproduce non-speculative greedy output exactly under G0; any
@@ -256,8 +257,8 @@ benchmark client, observability). They shape the whole codebase.
 
 | # | Build | Tests added | Study on own engine | Prediction to check | What it teaches |
 |---|---|---|---|---|---|
-| M2 | OpenAI-compatible server, streaming, request queue. **Benchmark harness** (vLLM bench client for A/B, own generator for C), Prometheus metrics, per-request timeline | **G1**, **R1** | **S2 Overhead and queueing:** client vs engine-internal TTFT broken down per the overhead accounting; Poisson arrivals at rising rate, one request at a time | Fixed overhead of a few ms. Latency hockey-sticks once the arrival rate passes 1 ÷ service time | Queueing theory; why serving one at a time wastes the GPU |
-| M3 | Static batching | — | **S3 Batch-size sweep** 1 → 64 on B, then mixed lengths | Throughput near-linear in batch while memory-bound (ITL nearly flat), knee where arithmetic intensity reaches the balance point. On mixed lengths, short requests wait for the longest | Batching uses idle compute; the head-of-line problem |
+| M2 | OpenAI-compatible server, streaming, request queue. **Benchmark harness** (own client for A, B and C, cross-checked against `vllm bench serve`; decision 5), per-request timeline, engine step log, Prometheus metrics (decision 6) | G0 through the API, **R1** | **S2 Overhead and queueing:** client vs engine-internal TTFT broken down per the overhead accounting; Poisson arrivals at rising rate, one request at a time | Fixed overhead of a few ms. Latency hockey-sticks once the arrival rate passes 1 ÷ service time | Queueing theory; why serving one at a time wastes the GPU |
+| M3 | Static batching | **G1a**, **G1b** | **S3 Batch-size sweep** 1 → 64 on B, then mixed lengths | Throughput near-linear in batch while memory-bound (ITL nearly flat), knee where arithmetic intensity reaches the balance point. On mixed lengths, short requests wait for the longest | Batching uses idle compute; the head-of-line problem |
 
 ⚑ **Decision 9 before M4** (scheduler policy).
 
@@ -440,8 +441,8 @@ decided late, so settle it before writing M2.
 | 2 | **Workload C (agent) spec** | Purely synthetic vs replaying public traces (Mooncake/Kimi, Azure LLM inference traces, BurstGPT) | Synthetic generator with explicit distributions: turns per session, shared-prefix size, tool-pause duration, Poisson arrivals. Validate arrival shape against a public trace. Abstract patterns only, no Oracle data |
 | 3 | **SLO and metric definitions** | Fixed numbers per workload | E.g. TTFT p99 ≤ 1 s (B, C), ≤ 3 s (A); TPOT p99 ≤ 50 ms. Goodput = requests/s meeting both. Fix them now so S4–S10 and D3 are comparable |
 | 4 | **Correctness method** | Greedy token match vs logit tolerance | Greedy match vs Hugging Face holds only at batch 1. bf16 kernels aren't batch-invariant, so batched runs diverge legitimately. Add teacher-forced logit comparison with a tolerance, plus an fp32 test mode. Implemented as gates G0–G2 |
-| 5 | **Benchmark client** | Write one vs reuse `vllm bench serve` against own OpenAI-compatible server | Reuse vLLM's client for A/B (it's only the load generator), write own generator for C. Same client against both engines makes S11 fair |
-| 6 | **Observability** | Logs only vs metrics + per-request timeline | Prometheus metrics plus a per-request timeline (queue, prefill, decode, cache-hit tokens) from M2. Every study reads from it |
+| 5 | **Benchmark client** | Write one vs reuse `vllm bench serve` against own OpenAI-compatible server | **Decided 2026-10-11:** own client for A, B and C (runs on the Mac, one set of metric definitions, agent sessions), cross-checked against `vllm bench serve` in the GPU session. Same client against both engines keeps S11 fair |
+| 6 | **Observability** | Logs only vs metrics + per-request timeline | **Decided 2026-10-11:** per-request timeline (returned to the client + JSONL), an engine step log behind a flag, and Prometheus `/metrics` from M2; OpenTelemetry tracing added at D2. Every study reads from them |
 
 **B. Decide by M4–M6**
 
