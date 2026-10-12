@@ -136,6 +136,26 @@ add("M2", "tests/test_engine_core.py", "test", "python", working("tests/test_eng
     "The engine core in-process: FIFO, stop tokens, ignore_eos, aborts, timeline order.",
     ["Why does the stop-token test expect output up to the FIRST occurrence of the stop token?"])
 
+add("M2", "benchmarks/workloads.py", "tool", "python", working("benchmarks/workloads.py"),
+    "Workloads as token ids: random, A (arXiv, 8K in), B (UltraChat, ~100 in / 1,000 out), C (agent sessions).",
+    ["Why are prompts token ids rather than text, and why fix outputs with ignore_eos?",
+     "Workload C: how is the turns distribution set so its mean is 6? Why lognormal for pauses?",
+     "What does the generator do when the context cap cuts a session short, and why?"])
+add("M2", "benchmarks/client.py", "tool", "python", working("benchmarks/client.py"),
+    "Open-loop client: gamma arrivals, per-token timestamps on the server's clock, sessions, SLO/goodput summary.",
+    ["`arrival_offsets`: derive the gamma shape and scale that give mean 1/rate and coefficient of variation cv.",
+     "Why does `run_requests` sleep until each scheduled time instead of awaiting the previous response?",
+     "In `run_sessions`, why must the reply's exact token ids be appended to the history?",
+     "Which requests count toward goodput, and how is session goodput different?"])
+add("M2", "benchmarks/s2_overhead_queueing.py", "tool", "python", working("benchmarks/s2_overhead_queueing.py"),
+    "S2: TTFT split into six stages on an idle server; queue wait vs utilization against the M/D/1 formula.",
+    ["Why is the M2 engine an M/D/1 queue? What do M, D and 1 stand for here?",
+     "Derive W at rho = 0.9 in units of S. Why does it blow up as rho approaches 1?",
+     "The Mac smoke run measured waits below M/D/1. Give two reasons."])
+add("M2", "tests/test_client.py", "test", "python", working("tests/test_client.py"),
+    "Arrival statistics, summary math, workload C rules, and client runs against a real tiny server.",
+    ["What does `test_open_loop_requests_against_server` prove by comparing client and server timestamps?"])
+
 order = {"M0": 0, "M1": 100, "M2": 200}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i

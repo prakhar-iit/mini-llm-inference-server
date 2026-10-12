@@ -157,7 +157,7 @@ scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0
 | Workload | Shape | Data | What it stresses |
 |---|---|---|---|
 | **A — Summarize** | ~8,000 tokens in → ~150 out | arXiv papers (`ccdv/arxiv-summarization`) | Prefill (compute-bound) |
-| **B — Generate** | ~100 tokens in → ~1,000 out | ShareGPT conversations | Decode (memory-bound) |
+| **B — Generate** | ~100 tokens in → ~1,000 out | Real user prompts: UltraChat-200k (ShareGPT's only public copy is one 670 MB JSON) | Decode (memory-bound) |
 | **C — Agent** | Shared system prompt + tool schemas (~3–4K tokens), multi-turn sessions, tool-call pauses between turns | Synthetic generator with set distributions (see open decision 2) | Prefix reuse, session state, bursty arrivals |
 | **Mix — A+B** | A and B interleaved (e.g. 30/70 by request) | Both of the above | Scheduler fairness, head-of-line blocking, prefill/decode interference |
 
