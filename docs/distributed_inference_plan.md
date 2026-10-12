@@ -138,9 +138,19 @@ D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone; applications
 - Compare against Hugging Face on the same device only, never Mac vs CUDA.
 - Platform-specific dependency pins, so FlashInfer installs only on Linux/CUDA.
 
-**Study hardware:** run studies on the L4 as each milestone lands; it's cheap and the effects are
-visible. Then rerun the whole suite on one A100/H100 of the p4/p5 in a single scripted session: once at
-v1 ship, once at the end of Phase 1.
+**Study hardware (decided 2026-10-11):** no GPU during development. Phase 1 studies run together in
+scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one A100/H100
+(L4 acceptable for a first pass). To make that work:
+- Tag every milestone (`m0`, `m1`, …) so each study can check out its milestone and the one before it.
+- Write each study's prediction when its milestone lands, while the code is fresh; the GPU session only
+  measures and explains the gaps.
+- Smoke-run every study script on the Mac (tiny model or Llama-3.2-1B) to catch broken scripts and
+  check curve shapes; Mac numbers never go in a write-up.
+- G2 runs in full only on the GPU (32K-token perplexity + 200 GSM8K questions; ~30 min per engine on
+  the Mac). The first GPU session records the HF baseline (`benchmarks/g2_quality.py --engine hf
+  --save-baseline`), then checks every milestone tag against it. The Mac only smoke-runs it.
+- One short g6.xlarge check (~1 hour) when M5 lands: FlashInfer and the KV layout (decision 7) are the
+  first CUDA-only code, and a layout problem found at v1 would mean reworking M5 and M6.
 
 **Workloads (the harness is reused from M2 through Phase 4):**
 

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "openai", "matplotlib", "pandas"]
+dev = ["pytest", "openai", "matplotlib", "pandas", "datasets"]
 # CUDA-only kernels. Linux only; never installed on the MacBook.
 cuda = ["flashinfer-python; sys_platform == 'linux'"]
 

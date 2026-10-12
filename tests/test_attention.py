@@ -42,3 +42,14 @@ def test_prefill_is_causal():
     after = backend.prefill(q, k2, v2)
     torch.testing.assert_close(before[:, :, :-1], after[:, :, :-1])
     assert not torch.allclose(before[:, :, -1], after[:, :, -1])
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("tq,tk", [(1, 9), (4, 9), (9, 9)], ids=["decode", "continue", "fresh"])
+def test_prefill_on_top_of_cache_matches_naive(device, tq, tk):
+    # The queries are the last tq of tk positions: compare with full attention's last tq rows.
+    g = torch.Generator().manual_seed(2)
+    q_all, k, v = (torch.randn(1, n, tk, 16, generator=g).to(device) for n in (4, 2, 2))
+    q = q_all[:, :, -tq:]
+    out = get_backend("torch_ref").prefill(q, k, v)
+    torch.testing.assert_close(out, naive_causal_gqa(q_all, k, v)[:, :, -tq:], atol=1e-5, rtol=1e-5)

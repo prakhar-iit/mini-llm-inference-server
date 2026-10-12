@@ -7,6 +7,7 @@ To build:
 
 from __future__ import annotations
 
+import torch
 import torch.nn.functional as F
 
 from .base import AttentionBackend
@@ -17,11 +18,19 @@ class TorchRefBackend(AttentionBackend):
 
     def prefill(self, q, k, v, **kwargs):
         # B, T, V - Batch Size, Sequence Token Length, and Vocab
-        # q [B, H, T, Dh], k/v [B, Hkv, T, Dh] -> [B, H, T, Dh]. Scale defaults to 1/sqrt(Dh).
-        # is_causal: token t attends only to tokens 0..t. Its mask is aligned top-left, which is only
-        #   right while q and k have the same length (true in M0; not once M1 adds cached KV).
+        # q [B, H, Tq, Dh], k/v [B, Hkv, Tk, Dh] -> [B, H, Tq, Dh]. Scale defaults to 1/sqrt(Dh).
         # enable_gqa: each KV head is shared by H // Hkv query heads, without copying k and v.
-        return F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=True)
+        tq, tk = q.shape[2], k.shape[2]
+        if tq == tk:
+            # Fresh prompt. is_causal aligns its mask top-left, which is right only when Tq == Tk.
+            return F.scaled_dot_product_attention(q, k, v, is_causal=True, enable_gqa=True)
+        if tq == 1:
+            # Decode step: the one new token is the newest position, so it may see every key. No mask.
+            return F.scaled_dot_product_attention(q, k, v, enable_gqa=True)
+        # Prompt continued on top of cached tokens: causal mask aligned bottom-right.
+        # True = may attend. Query i (position tk - tq + i) sees keys 0 .. tk - tq + i.
+        mask = torch.ones(tq, tk, dtype=torch.bool, device=q.device).tril(diagonal=tk - tq)
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, enable_gqa=True)
 
     def decode(self, q, kv_cache, block_tables, context_lens, **kwargs):
         raise NotImplementedError("M5")

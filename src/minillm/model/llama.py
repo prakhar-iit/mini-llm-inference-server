@@ -1,9 +1,8 @@
-"""Llama forward pass (M0).
+"""Llama forward pass (M0), with an optional KV cache (M1).
 
 Module and parameter names mirror Hugging Face's `LlamaForCausalLM`, so `loader.py` can copy the
-safetensors weights in by name. The constructors are done; every `forward` marked `YOURS (M0)` is the
-milestone. `tests/test_g0_correctness.py` is the spec: it compares logits and greedy tokens with HF on
-a tiny random config (fp32, CPU), then on Llama-3.2-1B once the weights are downloaded.
+safetensors weights in by name. `tests/test_g0_correctness.py` and `tests/test_kv_cache.py` are the
+spec: they compare logits and greedy tokens with HF on tiny random configs and on Llama-3.2-1B.
 
 Shape legend: B batch, T tokens, D hidden_size, H query heads, Hkv KV heads, Dh head_dim, V vocab.
 """
@@ -16,6 +15,7 @@ from torch import nn
 
 from ..attention import AttentionBackend, get_backend
 from .config import LlamaConfig
+from .kv_cache import KVCache
 from .rope import compute_inv_freq
 
 
@@ -73,24 +73,29 @@ def apply_rotary(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch
 
 
 class LlamaAttention(nn.Module):
-    def __init__(self, config: LlamaConfig, backend: AttentionBackend) -> None:
+    def __init__(self, config: LlamaConfig, backend: AttentionBackend, layer_idx: int) -> None:
         super().__init__()
         self.config = config
         self.backend = backend
+        self.layer_idx = layer_idx  # which of the cache's per-layer buffers this layer owns
         h, hkv, dh, d = config.num_attention_heads, config.num_key_value_heads, config.head_dim, config.hidden_size
         self.q_proj = nn.Linear(d, h * dh, bias=False)
         self.k_proj = nn.Linear(d, hkv * dh, bias=False)
         self.v_proj = nn.Linear(d, hkv * dh, bias=False)
         self.o_proj = nn.Linear(h * dh, d, bias=False)
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
-        """x [B, T, D] -> [B, T, D]. Causal self-attention over the whole sequence (no cache in M0).
+    def forward(
+        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None
+    ) -> torch.Tensor:
+        """x [B, T, D] -> [B, T, D]. Causal self-attention of the T new tokens.
 
         1. Project to q [B, H, T, Dh] and k, v [B, Hkv, T, Dh] (view + transpose).
         2. Apply RoPE to q and k.
-        3. self.backend.prefill(q, k, v) -> [B, H, T, Dh]. Grouped-query attention: each KV head
+        3. With a cache: store the new k, v and attend over every cached token (Tk = seq_len + T).
+           Without one (M0): attend over just these T tokens.
+        4. self.backend.prefill(q, k, v) -> [B, H, T, Dh]. Grouped-query attention: each KV head
            serves `config.num_kv_groups` query heads; the backend handles that.
-        4. Back to [B, T, H*Dh], then o_proj.
+        5. Back to [B, T, H*Dh], then o_proj.
         """
         b, t, _ = x.shape
         dh = self.config.head_dim
@@ -100,6 +105,10 @@ class LlamaAttention(nn.Module):
         v = self.v_proj(x).view(b, t, -1, dh).transpose(1, 2)
 
         q, k = apply_rotary(q, cos, sin), apply_rotary(k, cos, sin)  # v carries content, not position
+        if kv_cache is not None:
+            # k is cached AFTER RoPE: a token's rotation depends only on its own position, which never
+            # changes, so cached keys stay valid for every later query.
+            k, v = kv_cache.append(self.layer_idx, k, v)  # now [B, Hkv, seq_len + T, Dh]
         out = self.backend.prefill(q, k, v)  # [B, H, T, Dh]
 
         # Concatenate the heads back into one vector per token, then mix them with o_proj.
@@ -120,19 +129,21 @@ class LlamaMLP(nn.Module):
 
 
 class LlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, backend: AttentionBackend) -> None:
+    def __init__(self, config: LlamaConfig, backend: AttentionBackend, layer_idx: int) -> None:
         super().__init__()
         self.input_layernorm = RMSNorm(config.hidden_size, config.rms_norm_eps)
-        self.self_attn = LlamaAttention(config, backend)
+        self.self_attn = LlamaAttention(config, backend, layer_idx)
         self.post_attention_layernorm = RMSNorm(config.hidden_size, config.rms_norm_eps)
         self.mlp = LlamaMLP(config)
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None
+    ) -> torch.Tensor:
         """Pre-norm residual block: x + attn(norm(x)), then + mlp(norm(.)).
 
         Each sublayer reads a normalized copy and adds its result back onto the unnormalized stream.
         """
-        x = x + self.self_attn(self.input_layernorm(x), cos, sin)
+        x = x + self.self_attn(self.input_layernorm(x), cos, sin, kv_cache)
         return x + self.mlp(self.post_attention_layernorm(x))
 
 
@@ -140,19 +151,24 @@ class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig, backend: AttentionBackend) -> None:
         super().__init__()
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList(LlamaDecoderLayer(config, backend) for _ in range(config.num_hidden_layers))
+        self.layers = nn.ModuleList(LlamaDecoderLayer(config, backend, i) for i in range(config.num_hidden_layers))
         self.norm = RMSNorm(config.hidden_size, config.rms_norm_eps)
         self.rotary_emb = RotaryEmbedding(config)
 
-    def forward(self, input_ids: torch.Tensor, positions: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, input_ids: torch.Tensor, positions: torch.Tensor, kv_cache: KVCache | None = None
+    ) -> torch.Tensor:
         """input_ids, positions [B, T] -> hidden states [B, T, D] after the final norm.
 
         cos/sin depend only on positions, which are the same for every layer, so compute them once.
+        With a cache, every layer writes at the same offset; the cache advances once, after the last.
         """
         x = self.embed_tokens(input_ids)
         cos, sin = self.rotary_emb(positions, x.dtype)
         for layer in self.layers:
-            x = layer(x, cos, sin)
+            x = layer(x, cos, sin, kv_cache)
+        if kv_cache is not None:
+            kv_cache.advance(input_ids.shape[1])
         return self.norm(x)
 
 
@@ -165,8 +181,25 @@ class LlamaForCausalLM(nn.Module):
         if config.tie_word_embeddings:
             self.lm_head.weight = self.model.embed_tokens.weight
 
-    def forward(self, input_ids: torch.Tensor, positions: torch.Tensor | None = None) -> torch.Tensor:
-        """input_ids [B, T] -> logits [B, T, V]. `positions` defaults to 0..T-1 for every row."""
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        positions: torch.Tensor | None = None,
+        kv_cache: KVCache | None = None,
+        last_only: bool = False,
+    ) -> torch.Tensor:
+        """input_ids [B, T] -> logits [B, T, V], or [B, 1, V] with `last_only`.
+
+        `positions` defaults to the next T positions: 0..T-1 without a cache, or continuing from
+        `kv_cache.seq_len`. `last_only` skips lm_head for every position but the last; generation only
+        samples from the last, and for a 16K-token prompt the full [1, 16384, 128256] bf16 logits
+        would be 4 GB.
+        """
         if positions is None:
-            positions = torch.arange(input_ids.shape[1], device=input_ids.device).expand_as(input_ids)
-        return self.lm_head(self.model(input_ids, positions))
+            start = kv_cache.seq_len if kv_cache is not None else 0
+            positions = torch.arange(start, start + input_ids.shape[1], device=input_ids.device)
+            positions = positions.expand_as(input_ids)
+        hidden = self.model(input_ids, positions, kv_cache)
+        if last_only:
+            hidden = hidden[:, -1:]
+        return self.lm_head(hidden)

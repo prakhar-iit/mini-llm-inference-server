@@ -95,7 +95,7 @@ def test_attention_matches_hf(hkv):
     config = LlamaConfig.from_dict(hf_config.to_dict())
     torch.manual_seed(0)
     hf = HFAttention(hf_config, layer_idx=0).eval()
-    ours = LlamaAttention(config, get_backend("torch_ref"))
+    ours = LlamaAttention(config, get_backend("torch_ref"), layer_idx=0)
     ours.load_state_dict(hf.state_dict())  # q_proj, k_proj, v_proj, o_proj
 
     b, t = 2, 9
