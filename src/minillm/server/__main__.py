@@ -22,10 +22,12 @@ def main() -> None:
     parser.add_argument("--served-model-name", default=None)
     parser.add_argument("--step-log", default=None, help="write the engine step log (JSONL) here")
     parser.add_argument("--timeline-log", default=None, help="write per-request timelines (JSONL) here")
+    parser.add_argument("--max-batch-size", type=int, default=8,
+                        help="static batching (M3): requests prefilled and decoded together; 1 = M2 behaviour")
     args = parser.parse_args()
 
     app = create_app(args.model_dir, args.device, args.max_model_len, args.served_model_name,
-                     args.step_log, args.timeline_log)
+                     args.step_log, args.timeline_log, args.max_batch_size)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

@@ -87,7 +87,7 @@ def test_abort_running_and_waiting(model):
     core.abort("unknown")  # already finished or never existed: ignored
     outs = core.step().outputs
     assert {o.req_id: o.finish_reason for o in outs} == {"run": "abort", "wait": "abort"}
-    assert core.running is None and not core.waiting and not core.has_work()
+    assert core.batch is None and not core.waiting and not core.has_work()
     assert core.stats() == EngineStats(0, 0, 0)
 
 
@@ -95,3 +95,51 @@ def test_rejects_too_long(model):
     core = EngineCore(model, max_model_len=32)
     with pytest.raises(ValueError, match="max_model_len"):
         core.add_request(AddRequest("x", prompt(6, 30), 5))
+
+
+# ---------- M3: static batching ----------
+
+
+def test_static_batch_tokens_match_batch_1(model):
+    core = EngineCore(model, max_batch_size=4, step_log=True)
+    ps = [prompt(20 + i, n) for i, n in enumerate([4, 15, 9, 22, 7])]
+    lens = [12, 5, 9, 3, 6]
+    for i, (p, n) in enumerate(zip(ps, lens)):
+        core.add_request(AddRequest(f"b{i}", p, n))
+    outs = run_to_completion(core)
+    for i, (p, n) in enumerate(zip(ps, lens)):
+        assert [t for o in outs[f"b{i}"] for t in o.new_token_ids] == greedy_generate(model, torch.tensor([p]), n)
+    log = core.step_log
+    # First batch: 4 requests prefilled together; it runs until the longest (12 tokens) is done.
+    assert log[0].num_seqs == 4 and log[0].prefill_tokens == 4 + 15 + 9 + 22
+    assert [r.num_seqs for r in log[:12]] == [4] * 12
+    # Rows that finished early are still computed: kept tokens shrink while num_seqs stays 4.
+    # Request with n tokens stays active for decode steps 1..n-1 (lengths 12, 5, 9, 3).
+    assert [r.decode_tokens for r in log[1:12]] == [4, 4, 3, 3, 2, 2, 2, 2, 1, 1, 1]
+    # Then the fifth request runs alone.
+    assert log[12].num_seqs == 1 and log[12].prefill_tokens == 7
+
+
+def test_static_batch_short_request_waits_for_batch(model):
+    # Head-of-line: a request arriving while a batch runs waits for the WHOLE batch, even if a slot is idle.
+    core = EngineCore(model, max_batch_size=2)
+    core.add_request(AddRequest("long", prompt(30), 20))
+    core.add_request(AddRequest("short", prompt(31), 2))
+    core.step()  # prefill both
+    core.add_request(AddRequest("late", prompt(32), 2))
+    outs = run_to_completion(core)
+    late, long_ = outs["late"][-1].timeline, outs["long"][-1].timeline
+    assert outs["short"][-1].timeline["finished"] < late["scheduled"]
+    assert late["scheduled"] >= long_["finished"]
+
+
+def test_abort_inside_batch(model):
+    core = EngineCore(model, max_batch_size=3)
+    for i in range(3):
+        core.add_request(AddRequest(f"x{i}", prompt(40 + i), 30))
+    core.step()
+    core.abort("x1")
+    rest = run_to_completion(core)
+    assert rest["x1"][-1].finish_reason == "abort" and len(rest["x1"]) == 1
+    assert rest["x0"][-1].finish_reason == rest["x2"][-1].finish_reason == "length"
+    assert core.batch is None and core.stats() == EngineStats(0, 0, 0)

@@ -28,10 +28,11 @@ def run_engine_process(
     out_addr: str,
     max_model_len: int | None,
     step_log_path: str | None,
+    max_batch_size: int = 1,
 ) -> None:
     info = select_device(device)
     model = load_model(model_dir, info.device, info.dtype)
-    core = EngineCore(model, max_model_len, step_log=step_log_path is not None)
+    core = EngineCore(model, max_model_len, step_log=step_log_path is not None, max_batch_size=max_batch_size)
 
     ctx = zmq.Context()
     inbox = ctx.socket(zmq.PULL)

@@ -64,3 +64,41 @@ def greedy_generate(
             return new_tokens
         next_token = torch.tensor([[next_id]], dtype=input_ids.dtype, device=input_ids.device)
         logits = model(next_token, kv_cache=cache, last_only=True)  # decode: one token in, [1, 1, V] out
+
+
+def pad_left(prompts: list[list[int]], device, pad_id: int = 0) -> tuple[torch.Tensor, torch.Tensor | None]:
+    """Left-pad prompts to one length: (input_ids [B, L], attention_mask [B, L] or None if none needed).
+
+    Left, not right: every row's newest token then sits in the last column, so one decode step appends
+    one column for the whole batch.
+    """
+    longest = max(len(p) for p in prompts)
+    ids = torch.full((len(prompts), longest), pad_id, dtype=torch.long)
+    mask = torch.zeros((len(prompts), longest), dtype=torch.long)
+    for i, p in enumerate(prompts):
+        ids[i, longest - len(p):] = torch.tensor(p)
+        mask[i, longest - len(p):] = 1
+    padded = any(len(p) < longest for p in prompts)
+    return ids.to(device), (mask.to(device) if padded else None)
+
+
+@torch.inference_mode()
+def greedy_generate_batch(
+    model: LlamaForCausalLM,
+    prompts: list[list[int]],
+    max_new_tokens: int,
+) -> list[list[int]]:
+    """Static batch (M3): left-pad the prompts, prefill them together, decode all rows in lockstep for
+    `max_new_tokens` steps (no early stop). Each row must equal greedy_generate on that prompt alone (G1a)."""
+    param = next(model.parameters())
+    ids, mask = pad_left(prompts, param.device)
+    cache = KVCache(model.config, len(prompts), ids.shape[1] + max_new_tokens, param.device, param.dtype)
+    logits = model(ids, kv_cache=cache, last_only=True, attention_mask=mask)
+    out: list[list[int]] = [[] for _ in prompts]
+    for step in range(max_new_tokens):
+        nxt = logits[:, -1].argmax(dim=-1)  # [B]
+        for row, tok in zip(out, nxt.tolist()):
+            row.append(tok)
+        if step + 1 < max_new_tokens:
+            logits = model(nxt[:, None], kv_cache=cache, last_only=True)
+    return out

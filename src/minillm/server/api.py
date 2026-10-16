@@ -135,7 +135,7 @@ class IncrementalDetokenizer:
 
 def create_app(model_dir: str, device: str = "auto", max_model_len: int | None = None,
                served_model_name: str | None = None, step_log_path: str | None = None,
-               timeline_log_path: str | None = None) -> FastAPI:
+               timeline_log_path: str | None = None, max_batch_size: int = 8) -> FastAPI:
     from pathlib import Path
 
     from ..model.config import LlamaConfig
@@ -155,7 +155,7 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        engine = EngineClient(model_dir, device, max_len, step_log_path)
+        engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size)
         state["engine"] = engine
         await engine.start()
         yield
@@ -183,7 +183,7 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
     @app.get("/v1/models")
     async def models():
         return {"object": "list", "data": [{"id": model_name, "object": "model", "owned_by": "minillm",
-                                            "max_model_len": max_len}]}
+                                            "max_model_len": max_len, "max_batch_size": max_batch_size}]}
 
     @app.get("/metrics")
     async def prometheus():

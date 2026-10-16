@@ -85,9 +85,12 @@ class LlamaAttention(nn.Module):
         self.o_proj = nn.Linear(h * dh, d, bias=False)
 
     def forward(
-        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None
+        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None,
+        key_valid: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """x [B, T, D] -> [B, T, D]. Causal self-attention of the T new tokens.
+
+        `key_valid` [B, Tk] marks real tokens vs left-padding in a batch (M3); None means no padding.
 
         1. Project to q [B, H, T, Dh] and k, v [B, Hkv, T, Dh] (view + transpose).
         2. Apply RoPE to q and k.
@@ -109,7 +112,7 @@ class LlamaAttention(nn.Module):
             # k is cached AFTER RoPE: a token's rotation depends only on its own position, which never
             # changes, so cached keys stay valid for every later query.
             k, v = kv_cache.append(self.layer_idx, k, v)  # now [B, Hkv, seq_len + T, Dh]
-        out = self.backend.prefill(q, k, v)  # [B, H, T, Dh]
+        out = self.backend.prefill(q, k, v, key_valid=key_valid)  # [B, H, T, Dh]
 
         # Concatenate the heads back into one vector per token, then mix them with o_proj.
         return self.o_proj(out.transpose(1, 2).reshape(b, t, -1))
@@ -137,13 +140,14 @@ class LlamaDecoderLayer(nn.Module):
         self.mlp = LlamaMLP(config)
 
     def forward(
-        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None
+        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor, kv_cache: KVCache | None = None,
+        key_valid: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Pre-norm residual block: x + attn(norm(x)), then + mlp(norm(.)).
 
         Each sublayer reads a normalized copy and adds its result back onto the unnormalized stream.
         """
-        x = x + self.self_attn(self.input_layernorm(x), cos, sin, kv_cache)
+        x = x + self.self_attn(self.input_layernorm(x), cos, sin, kv_cache, key_valid)
         return x + self.mlp(self.post_attention_layernorm(x))
 
 
@@ -156,17 +160,26 @@ class LlamaModel(nn.Module):
         self.rotary_emb = RotaryEmbedding(config)
 
     def forward(
-        self, input_ids: torch.Tensor, positions: torch.Tensor, kv_cache: KVCache | None = None
+        self, input_ids: torch.Tensor, positions: torch.Tensor, kv_cache: KVCache | None = None,
+        attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """input_ids, positions [B, T] -> hidden states [B, T, D] after the final norm.
 
         cos/sin depend only on positions, which are the same for every layer, so compute them once.
         With a cache, every layer writes at the same offset; the cache advances once, after the last.
+        `attention_mask` [B, T] (1 = real token, 0 = left-padding) is turned into one padding mask over
+        all keys, built once here and shared by every layer.
         """
+        t = input_ids.shape[1]
+        if kv_cache is not None:
+            kv_cache.mark(attention_mask, t)
+            key_valid = kv_cache.key_valid(t)
+        else:
+            key_valid = None if attention_mask is None else attention_mask.to(torch.bool)
         x = self.embed_tokens(input_ids)
         cos, sin = self.rotary_emb(positions, x.dtype)
         for layer in self.layers:
-            x = layer(x, cos, sin, kv_cache)
+            x = layer(x, cos, sin, kv_cache, key_valid)
         if kv_cache is not None:
             kv_cache.advance(input_ids.shape[1])
         return self.norm(x)
@@ -187,19 +200,26 @@ class LlamaForCausalLM(nn.Module):
         positions: torch.Tensor | None = None,
         kv_cache: KVCache | None = None,
         last_only: bool = False,
+        attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """input_ids [B, T] -> logits [B, T, V], or [B, 1, V] with `last_only`.
 
-        `positions` defaults to the next T positions: 0..T-1 without a cache, or continuing from
-        `kv_cache.seq_len`. `last_only` skips lm_head for every position but the last; generation only
-        samples from the last, and for a 16K-token prompt the full [1, 16384, 128256] bf16 logits
-        would be 4 GB.
+        `positions` defaults to each row's next positions, counting real tokens only: padding never
+        shifts a row's RoPE positions, so a left-padded request sees exactly the positions it would see
+        alone. `attention_mask` [B, T] (1 = real, 0 = left-padding) marks padding in this call's tokens.
+        `last_only` skips lm_head for every position but the last; generation only samples from the last,
+        and for a 16K-token prompt the full [1, 16384, 128256] bf16 logits would be 4 GB.
         """
         if positions is None:
-            start = kv_cache.seq_len if kv_cache is not None else 0
-            positions = torch.arange(start, start + input_ids.shape[1], device=input_ids.device)
-            positions = positions.expand_as(input_ids)
-        hidden = self.model(input_ids, positions, kv_cache)
+            t = input_ids.shape[1]
+            if attention_mask is not None or (kv_cache is not None and kv_cache.has_padding):
+                base = kv_cache.num_valid[:, None] if kv_cache is not None else 0
+                mask = attention_mask if attention_mask is not None else torch.ones_like(input_ids)
+                positions = (base + mask.long().cumsum(dim=1) - 1).clamp_min(0)  # pads get 0; masked anyway
+            else:
+                start = kv_cache.seq_len if kv_cache is not None else 0
+                positions = torch.arange(start, start + t, device=input_ids.device).expand_as(input_ids)
+        hidden = self.model(input_ids, positions, kv_cache, attention_mask)
         if last_only:
             hidden = hidden[:, -1:]
         return self.lm_head(hidden)

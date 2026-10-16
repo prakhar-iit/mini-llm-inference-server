@@ -56,7 +56,9 @@ def tiny_dir(tmp_path_factory):
 @pytest.fixture(scope="module")
 def server(tiny_dir, tmp_path_factory):
     logs = tmp_path_factory.mktemp("logs")
-    proc, base = start_server(tiny_dir, "cpu", ["--timeline-log", str(logs / "timeline.jsonl")])
+    # Batch size 1: these tests pin down M2's one-at-a-time serving; batching is tested separately.
+    proc, base = start_server(tiny_dir, "cpu", ["--timeline-log", str(logs / "timeline.jsonl"),
+                                                "--max-batch-size", "1"])
     yield base, logs
     proc.terminate()
     proc.wait(timeout=20)
@@ -220,3 +222,33 @@ def test_llama_32_1b_text_through_api():
                                    eos_token_ids=model.config.eos_token_ids)
         assert ids == expected
         assert text == tok.decode(expected, skip_special_tokens=True)
+
+
+def test_static_batching_through_the_server(tiny_dir, reference):
+    """M3 end to end: concurrent requests are prefilled together, and each still gets its batch-1 tokens."""
+    proc, base = start_server(tiny_dir, "cpu", ["--max-batch-size", "4"])
+    try:
+        prompts = [[i, 2 * i + 1, 3, 4, 5, 6][: 2 + i] for i in range(1, 5)]  # ragged lengths 3..6
+
+        async def go():
+            async with httpx.AsyncClient(timeout=60) as c:
+                # A first request occupies the engine so the next four queue up and form one batch.
+                first = asyncio.create_task(c.post(base + "/v1/completions",
+                                                   json={"prompt": [9, 9], "max_tokens": 1500, "ignore_eos": True}))
+                await asyncio.sleep(0.3)
+                rest = await asyncio.gather(*[
+                    c.post(base + "/v1/completions",
+                           json={"prompt": p, "max_tokens": 20, "ignore_eos": True, "return_token_ids": True})
+                    for p in prompts])
+                await first
+                return rest
+
+        results = [r.json() for r in asyncio.run(go())]
+        model = load_model(tiny_dir, device="cpu", dtype=torch.float32)
+        for p, r in zip(prompts, results):
+            assert r["choices"][0]["token_ids"] == greedy_generate(model, torch.tensor([p]), 20)
+        assert len({r["minillm_timeline"]["scheduled"] for r in results}) == 1  # one batch, one prefill
+        assert httpx.get(base + "/v1/models").json()["data"][0]["max_batch_size"] == 4
+    finally:
+        proc.terminate()
+        proc.wait(timeout=20)

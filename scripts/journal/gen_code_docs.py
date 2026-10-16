@@ -97,66 +97,100 @@ add("M1", "tests/test_kv_cache.py", "test", "python", at_ref("m1", "tests/test_k
     "The cache must change cost, never output: decode, chunked prompts and generation all match a full pass and HF.",
     ["`test_prompt_in_chunks_matches_full_pass` exercises which backend branch, and which later milestones need it?"])
 
-# ---------------- M2 (in progress: working tree vs m1) ----------------
-add("M2", "src/minillm/engine/protocol.py", "new", "python", working("src/minillm/engine/protocol.py"),
+# ---------------- M2 (tag m2) ----------------
+add("M2", "src/minillm/engine/protocol.py", "new", "python", at_ref("m2", "src/minillm/engine/protocol.py"),
     "Messages between frontend and engine: AddRequest, Abort, Ready, StepOutputs, as msgpack tagged maps.",
     ["Why msgpack instead of pickle? Name two reasons from decision 1.",
      "Why does the engine see token ids only, never text?",
      "What does `StepOutputs.stats` carry, and who reads it?"])
-add("M2", "src/minillm/engine/core.py", "new", "python", working("src/minillm/engine/core.py"),
+add("M2", "src/minillm/engine/core.py", "new", "python", at_ref("m2", "src/minillm/engine/core.py"),
     "The engine core: FIFO queue, one request at a time; each step is a prefill or one decode token.",
     ["Walk through `step()` for a new request, then for a running one. Where does the GPU work actually finish?",
      "Why serve one request at a time on purpose? What will S2 show as the arrival rate rises?",
      "What happens to a request's KV cache when it finishes or is aborted?",
      "Which timeline stamps does the engine add, and which come from the frontend?"])
-add("M2", "src/minillm/engine/process.py", "new", "python", working("src/minillm/engine/process.py"),
+add("M2", "src/minillm/engine/process.py", "new", "python", at_ref("m2", "src/minillm/engine/process.py"),
     "The engine process loop: drain messages, step, send outputs; idle-poll when there's no work.",
     ["Why is the poll timeout 0 while there is work and 50 ms when idle?",
      "Why is the step log written only when the engine is idle?",
      "Why does the frontend start this process with spawn instead of fork?"])
-add("M2", "src/minillm/server/engine_client.py", "new", "python", working("src/minillm/server/engine_client.py"),
+add("M2", "src/minillm/server/engine_client.py", "new", "python", at_ref("m2", "src/minillm/server/engine_client.py"),
     "The frontend's handle on the engine: one reader task routes outputs to per-request queues; disconnects abort.",
     ["Trace a request from `generate()` to the first yielded output.",
      "Why is the Abort sent with NOBLOCK instead of awaited?",
      "What was the R1 bug, and what does `_abandoned` fix?"])
-add("M2", "src/minillm/server/api.py", "new", "python", working("src/minillm/server/api.py"),
+add("M2", "src/minillm/server/api.py", "new", "python", at_ref("m2", "src/minillm/server/api.py"),
     "OpenAI-compatible endpoints, SSE streaming, incremental detokenization, timelines, Prometheus metrics.",
     ["Write the sequence of SSE events for a 3-token streamed completion with include_usage.",
      "Why does the detokenizer hold back text ending in U+FFFD?",
      "Which request fields are rejected with 400, and why reject instead of ignoring?",
      "How is server-side TTFT computed, and how does it differ from the client's TTFT?"])
-add("M2", "src/minillm/server/__main__.py", "new", "python", working("src/minillm/server/__main__.py"),
+add("M2", "src/minillm/server/__main__.py", "new", "python", at_ref("m2", "src/minillm/server/__main__.py"),
     "`python -m minillm.server`: builds the app (which starts the engine process) and runs uvicorn.",
     ["What do `--step-log` and `--timeline-log` write, and which studies read them?"])
-add("M2", "tests/test_server.py", "test", "python", working("tests/test_server.py"),
+add("M2", "tests/test_server.py", "test", "python", at_ref("m2", "tests/test_server.py"),
     "End to end on a tiny model: G0 through the API, streaming format, FIFO order, bad requests, R1.",
     ["How does `test_concurrent_requests_are_served_fifo` prove one-at-a-time serving from timelines alone?",
      "Why did the reference first disagree with the server (hint: token 2), and which side was right?"])
-add("M2", "tests/test_engine_core.py", "test", "python", working("tests/test_engine_core.py"),
+add("M2", "tests/test_engine_core.py", "test", "python", at_ref("m2", "tests/test_engine_core.py"),
     "The engine core in-process: FIFO, stop tokens, ignore_eos, aborts, timeline order.",
     ["Why does the stop-token test expect output up to the FIRST occurrence of the stop token?"])
 
-add("M2", "benchmarks/workloads.py", "tool", "python", working("benchmarks/workloads.py"),
+add("M2", "benchmarks/workloads.py", "tool", "python", at_ref("m2", "benchmarks/workloads.py"),
     "Workloads as token ids: random, A (arXiv, 8K in), B (UltraChat, ~100 in / 1,000 out), C (agent sessions).",
     ["Why are prompts token ids rather than text, and why fix outputs with ignore_eos?",
      "Workload C: how is the turns distribution set so its mean is 6? Why lognormal for pauses?",
      "What does the generator do when the context cap cuts a session short, and why?"])
-add("M2", "benchmarks/client.py", "tool", "python", working("benchmarks/client.py"),
+add("M2", "benchmarks/client.py", "tool", "python", at_ref("m2", "benchmarks/client.py"),
     "Open-loop client: gamma arrivals, per-token timestamps on the server's clock, sessions, SLO/goodput summary.",
     ["`arrival_offsets`: derive the gamma shape and scale that give mean 1/rate and coefficient of variation cv.",
      "Why does `run_requests` sleep until each scheduled time instead of awaiting the previous response?",
      "In `run_sessions`, why must the reply's exact token ids be appended to the history?",
      "Which requests count toward goodput, and how is session goodput different?"])
-add("M2", "benchmarks/s2_overhead_queueing.py", "tool", "python", working("benchmarks/s2_overhead_queueing.py"),
+add("M2", "benchmarks/s2_overhead_queueing.py", "tool", "python", at_ref("m2", "benchmarks/s2_overhead_queueing.py"),
     "S2: TTFT split into six stages on an idle server; queue wait vs utilization against the M/D/1 formula.",
     ["Why is the M2 engine an M/D/1 queue? What do M, D and 1 stand for here?",
      "Derive W at rho = 0.9 in units of S. Why does it blow up as rho approaches 1?",
      "The Mac smoke run measured waits below M/D/1. Give two reasons."])
-add("M2", "tests/test_client.py", "test", "python", working("tests/test_client.py"),
+add("M2", "tests/test_client.py", "test", "python", at_ref("m2", "tests/test_client.py"),
     "Arrival statistics, summary math, workload C rules, and client runs against a real tiny server.",
     ["What does `test_open_loop_requests_against_server` prove by comparing client and server timestamps?"])
 
-order = {"M0": 0, "M1": 100, "M2": 200}
+# ---------------- M3 (in progress: working tree vs m2) ----------------
+add("M3", "src/minillm/attention/torch_ref.py", "changed", "diff", diff("m2", "src/minillm/attention/torch_ref.py"),
+    "Padding-aware attention: causal AND real key, or the query's own position.",
+    ["Draw the mask for rows with 2 and 4 real tokens padded to 4. Which entries does `own` add, and why?",
+     "What would SDPA return for a padding query with no visible key?"])
+add("M3", "src/minillm/model/kv_cache.py", "changed", "diff", diff("m2", "src/minillm/model/kv_cache.py"),
+    "The cache records which slots are real (`valid`) and how many real tokens each row has (`num_valid`).",
+    ["Why track `has_padding` in Python instead of checking the tensor?",
+     "After a padded prefill, why do decode steps still need the padding mask?"])
+add("M3", "src/minillm/model/llama.py", "changed", "diff", diff("m2", "src/minillm/model/llama.py"),
+    "Per-row positions counting real tokens only; one padding mask built per forward and shared by all layers.",
+    ["RoPE is shift-invariant, so shifted positions don't change the output. Why compute exact positions anyway?",
+     "Trace positions for prompts of length 3 and 1, then two decode steps."])
+add("M3", "src/minillm/generate.py", "changed", "diff", diff("m2", "src/minillm/generate.py"),
+    "`pad_left` and `greedy_generate_batch`: a static batch outside the engine, used by G1a and S3.",
+    ["Why pad on the left rather than the right?"])
+add("M3", "src/minillm/engine/core.py", "changed", "diff", diff("m2", "src/minillm/engine/core.py"),
+    "Static batching: admit up to max_batch_size, prefill together, decode in lockstep until the last finishes.",
+    ["What happens to a row that finishes early? What does it cost in compute and memory?",
+     "Why does a request arriving mid-batch wait for the whole batch even if a row is idle?",
+     "How does the step log separate useful work from waste?"])
+add("M3", "src/minillm/correctness.py", "new", "python", working("src/minillm/correctness.py"),
+    "G1b: teacher-forced bf16 drift, batch N vs batch 1, against 2× HF's own drift.",
+    ["Why teacher-force instead of comparing generated tokens?",
+     "Why is the tolerance measured from HF rather than fixed? What are the floors for?",
+     "Why are near-ties (margin < 0.5) allowed to flip?"])
+add("M3", "benchmarks/s3_batch_sweep.py", "tool", "python", working("benchmarks/s3_batch_sweep.py"),
+    "S3: decode step time and throughput vs batch size; static-batching waste on mixed lengths.",
+    ["Derive arithmetic intensity ≈ B FLOP/byte for a bf16 decode step at batch B.",
+     "What does `longest_share` measure?"])
+add("M3", "tests/test_batching.py", "test", "python", working("tests/test_batching.py"),
+    "G1a (fp32 exact under padding), positions, NaN safety, G1b math and the real-model G1b.",
+    ["Which injected bug did the output tests miss, and which test catches it?"])
+
+order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i
     m["lines"] = m["code"].count("\n") + 1

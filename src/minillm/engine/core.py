@@ -1,10 +1,12 @@
-"""Engine core (M2): a FIFO queue and a step loop that serves ONE request at a time.
+"""Engine core: a FIFO queue and a step loop. M2 served one request at a time; M3 adds static batching.
 
 Each `step()` does one unit of GPU work and returns the tokens it produced:
-- nothing running and a request waiting -> admit it and run its prefill (first token);
-- a request running -> one decode step (next token).
-Serving one request at a time is deliberate: S2 measures how the queue grows once requests arrive
-faster than one can be served, which is what batching (M3) and continuous batching (M4) fix.
+- no batch running and requests waiting -> admit up to `max_batch_size` of them, left-pad their prompts
+  and prefill them together (one first token each);
+- a batch running -> one decode step for every row (one token each).
+Static: a batch runs until its LAST request finishes, and nothing joins it meanwhile. Finished rows keep
+being computed (their tokens are discarded) and keep their KV memory until the whole batch ends. S3
+measures that waste; continuous batching (M4) removes it. max_batch_size=1 is exactly M2's behaviour.
 
 The core runs in-process (tests) or inside the engine process (`process.py`); it never touches text,
 HTTP or ZMQ.
@@ -18,6 +20,7 @@ from dataclasses import dataclass, field
 
 import torch
 
+from ..generate import pad_left
 from ..model.kv_cache import KVCache
 from ..model.llama import LlamaForCausalLM
 from .protocol import AddRequest, EngineStats, RequestOutput, StepOutputs
@@ -36,7 +39,13 @@ class Request:
     stop_ids: frozenset[int]
     timeline: dict[str, int]
     output: list[int] = field(default_factory=list)
-    cache: KVCache | None = None
+
+
+@dataclass
+class Batch:
+    reqs: list[Request]
+    cache: KVCache  # one cache for the whole batch: rows share a length (left-padded)
+    active: list[bool]  # False once a row finished or was aborted; it is still computed until the batch ends
 
 
 @dataclass
@@ -46,21 +55,23 @@ class StepRecord:
     step: int
     t_start: int
     duration_ns: int
-    num_seqs: int
-    prefill_tokens: int
-    decode_tokens: int
+    num_seqs: int  # rows computed this step, finished-but-not-released rows included
+    prefill_tokens: int  # real prompt tokens prefilled (padding excluded)
+    decode_tokens: int  # tokens kept (rows still active); num_seqs - decode_tokens is wasted work
     kv_tokens_used: int
     queue_len: int
 
 
 class EngineCore:
-    def __init__(self, model: LlamaForCausalLM, max_model_len: int | None = None, step_log: bool = False) -> None:
+    def __init__(self, model: LlamaForCausalLM, max_model_len: int | None = None, step_log: bool = False,
+                 max_batch_size: int = 1) -> None:
         self.model = model
         p = next(model.parameters())
         self.device, self.dtype = p.device, p.dtype
         self.max_model_len = max_model_len or model.config.max_position_embeddings
+        self.max_batch_size = max_batch_size
         self.waiting: deque[Request] = deque()
-        self.running: Request | None = None
+        self.batch: Batch | None = None
         self.step_log: list[StepRecord] | None = [] if step_log else None
         self._step = 0
         self._aborted: list[RequestOutput] = []
@@ -78,62 +89,82 @@ class EngineCore:
         self.waiting.append(Request(msg.req_id, list(msg.prompt_token_ids), msg.max_tokens, stop, timeline))
 
     def abort(self, req_id: str) -> None:
-        """Drop a request wherever it is; its KV cache is freed. Unknown ids are ignored (already finished)."""
-        if self.running is not None and self.running.req_id == req_id:
-            req, self.running = self.running, None
+        """Drop a request wherever it is. Unknown ids are ignored (already finished). In a static batch the row
+        stops producing output, but its memory is only released when the whole batch ends."""
+        b = self.batch
+        row = next((i for i, r in enumerate(b.reqs) if r.req_id == req_id and b.active[i]), None) if b else None
+        if row is not None:
+            req = b.reqs[row]
+            b.active[row] = False
+            if not any(b.active):
+                self.batch = None
         else:
             req = next((r for r in self.waiting if r.req_id == req_id), None)
             if req is None:
                 return
             self.waiting.remove(req)
-        req.cache = None
         self._aborted.append(self._finish(req, [], "abort"))
 
     # ---------- the loop ----------
 
     def has_work(self) -> bool:
-        return self.running is not None or bool(self.waiting) or bool(self._aborted)
+        return self.batch is not None or bool(self.waiting) or bool(self._aborted)
 
     def stats(self) -> EngineStats:
-        kv = self.running.cache.seq_len if self.running and self.running.cache else 0
-        return EngineStats(num_waiting=len(self.waiting), num_running=int(self.running is not None), kv_tokens_used=kv)
+        b = self.batch
+        if b is None:
+            return EngineStats(num_waiting=len(self.waiting), num_running=0, kv_tokens_used=0)
+        # Finished rows still hold their KV until the batch ends: count every row's tokens.
+        kv = sum(len(r.prompt) + len(r.output) for r in b.reqs)
+        return EngineStats(num_waiting=len(self.waiting), num_running=sum(b.active), kv_tokens_used=kv)
 
     @torch.inference_mode()
     def step(self) -> StepOutputs:
         outputs, self._aborted = self._aborted, []
         t0 = now_ns()
-        prefill_tokens = decode_tokens = 0
+        prefill_tokens = 0
 
-        if self.running is None and self.waiting:
-            req = self.running = self.waiting.popleft()
-            req.timeline["scheduled"] = t0
-            req.cache = KVCache(self.model.config, 1, len(req.prompt) + req.max_tokens, self.device, self.dtype)
-            ids = torch.tensor([req.prompt], device=self.device)
-            logits = self.model(ids, kv_cache=req.cache, last_only=True)
-            prefill_tokens = len(req.prompt)
-        elif self.running is not None:
-            req = self.running
-            ids = torch.tensor([[req.output[-1]]], device=self.device)
-            logits = self.model(ids, kv_cache=req.cache, last_only=True)
-            decode_tokens = 1
+        if self.batch is None and self.waiting:
+            reqs = [self.waiting.popleft() for _ in range(min(self.max_batch_size, len(self.waiting)))]
+            for r in reqs:
+                r.timeline["scheduled"] = t0
+            ids, mask = pad_left([r.prompt for r in reqs], self.device)
+            cache = KVCache(self.model.config, len(reqs), ids.shape[1] + max(r.max_tokens for r in reqs),
+                            self.device, self.dtype)
+            logits = self.model(ids, kv_cache=cache, last_only=True, attention_mask=mask)
+            b = self.batch = Batch(reqs, cache, [True] * len(reqs))
+            prefill_tokens = sum(len(r.prompt) for r in reqs)
+        elif self.batch is not None:
+            b = self.batch
+            # Every row feeds its newest token; rows that already finished are computed and discarded.
+            ids = torch.tensor([[r.output[-1]] for r in b.reqs], device=self.device)
+            logits = self.model(ids, kv_cache=b.cache, last_only=True)
         else:
             return StepOutputs(outputs, self.stats())
 
-        token = int(logits[0, -1].argmax())  # .item() waits for the GPU: the step's real end
-        req.output.append(token)
-        if prefill_tokens:
-            req.timeline["first_token"] = now_ns()
-
-        if token in req.stop_ids or len(req.output) >= req.max_tokens:
-            reason = "stop" if token in req.stop_ids else "length"
-            self.running, req.cache = None, None
-            outputs.append(self._finish(req, [token], reason))
-        else:
-            outputs.append(RequestOutput(req.req_id, [token]))
+        tokens = logits[:, -1].argmax(dim=-1).tolist()  # .tolist() waits for the GPU: the step's real end
+        t_tokens = now_ns()
+        kept = 0
+        for i, (req, token) in enumerate(zip(b.reqs, tokens)):
+            if not b.active[i]:
+                continue
+            kept += 1
+            req.output.append(token)
+            if prefill_tokens:
+                req.timeline["first_token"] = t_tokens
+            if token in req.stop_ids or len(req.output) >= req.max_tokens:
+                b.active[i] = False
+                outputs.append(self._finish(req, [token], "stop" if token in req.stop_ids else "length"))
+            else:
+                outputs.append(RequestOutput(req.req_id, [token]))
+        num_seqs = len(b.reqs)
+        if not any(b.active):
+            self.batch = None  # the whole batch is done: its KV memory is released at once
 
         if self.step_log is not None:
-            self.step_log.append(StepRecord(self._step, t0, now_ns() - t0, 1, prefill_tokens, decode_tokens,
-                                            self.stats().kv_tokens_used, len(self.waiting)))
+            self.step_log.append(StepRecord(self._step, t0, now_ns() - t0, num_seqs, prefill_tokens,
+                                            0 if prefill_tokens else kept, self.stats().kv_tokens_used,
+                                            len(self.waiting)))
         self._step += 1
         return StepOutputs(outputs, self.stats())
 
