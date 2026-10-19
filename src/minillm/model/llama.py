@@ -1,4 +1,4 @@
-"""Llama forward pass (M0), with an optional KV cache (M1, or M4's per-request slots).
+"""Llama forward pass (M0), with an optional KV cache: contiguous (M1) or paged and ragged (M5).
 
 Module and parameter names mirror Hugging Face's `LlamaForCausalLM`, so `loader.py` can copy the
 safetensors weights in by name. `tests/test_g0_correctness.py` and `tests/test_kv_cache.py` are the
@@ -15,7 +15,7 @@ from torch import nn
 
 from ..attention import AttentionBackend, get_backend
 from .config import LlamaConfig
-from .kv_cache import KVCache
+from ..cache.contiguous import KVCache
 from .rope import compute_inv_freq
 
 
@@ -108,6 +108,13 @@ class LlamaAttention(nn.Module):
         v = self.v_proj(x).view(b, t, -1, dh).transpose(1, 2)
 
         q, k = apply_rotary(q, cos, sin), apply_rotary(k, cos, sin)  # v carries content, not position
+        if getattr(kv_cache, "ragged", False):
+            # M5: one row of every sequence's new tokens; the backend writes them to the paged pool and attends
+            # over each sequence's own blocks. [1, heads, N, Dh] -> [N, heads, Dh].
+            layer = self.layer_idx
+            out = self.backend.forward(q[0].transpose(0, 1), k[0].transpose(0, 1), v[0].transpose(0, 1),
+                                       kv_cache.cache.k[layer], kv_cache.cache.v[layer], kv_cache.meta)
+            return self.o_proj(out.reshape(b, t, -1))
         if kv_cache is not None:
             # k is cached AFTER RoPE: a token's rotation depends only on its own position, which never
             # changes, so cached keys stay valid for every later query.
@@ -210,7 +217,8 @@ class LlamaForCausalLM(nn.Module):
         0 = left-padding) marks padding in this call's tokens.
         `last_only` skips lm_head for every position but the last; generation only samples from the last,
         and for a 16K-token prompt the full [1, 16384, 128256] bf16 logits would be 4 GB.
-        `last_index` [B] is the same for right-padded rows (M4 prefill): the column of each row's last real token.
+        `last_index` [B] is the same for right-padded rows: the column of each row's last real token. For a
+        ragged step (M5: input [1, N], paged KV) it indexes the N tokens instead, one per sequence: [S, 1, V].
         """
         if positions is None:
             if kv_cache is not None:
@@ -220,7 +228,9 @@ class LlamaForCausalLM(nn.Module):
             else:
                 positions = torch.arange(input_ids.shape[1], device=input_ids.device).expand_as(input_ids)
         hidden = self.model(input_ids, positions, kv_cache, attention_mask)
-        if last_index is not None:
+        if last_index is not None and getattr(kv_cache, "ragged", False):
+            hidden = hidden[0, last_index.to(hidden.device)][:, None]
+        elif last_index is not None:
             hidden = hidden[torch.arange(hidden.shape[0], device=hidden.device), last_index.to(hidden.device)][:, None]
         elif last_only:
             hidden = hidden[:, -1:]

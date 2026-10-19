@@ -4,6 +4,7 @@ batching has its own file (test_continuous_batching.py)."""
 import pytest
 import torch
 
+from conftest import assert_idle
 from minillm.engine.core import EngineCore
 from minillm.engine.protocol import Abort, AddRequest, EngineStats, Ready, RequestOutput, StepOutputs, decode, encode
 from minillm.generate import greedy_generate
@@ -89,7 +90,7 @@ def test_abort_running_and_waiting(model):
     outs = core.step().outputs
     assert {o.req_id: o.finish_reason for o in outs} == {"run": "abort", "wait": "abort"}
     assert not core.scheduler.running and not core.scheduler.waiting and not core.has_work()
-    assert core.stats() == EngineStats(0, 0, 0)
+    assert_idle(core)
 
 
 def test_rejects_too_long(model):

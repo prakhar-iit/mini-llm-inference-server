@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from .model.kv_cache import KVCache
+from .cache.contiguous import KVCache
 from .model.llama import LlamaForCausalLM
 
 

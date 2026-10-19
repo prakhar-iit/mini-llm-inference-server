@@ -52,7 +52,10 @@ class RequestOutput:
 class EngineStats:
     num_waiting: int
     num_running: int
-    kv_tokens_used: int  # tokens held in KV caches right now (blocks arrive at M5)
+    kv_tokens_used: int  # tokens whose k/v are in the pool right now
+    kv_blocks_used: int = 0  # M5: paged pool blocks held by running requests
+    kv_blocks_total: int = 0
+    num_preemptions: int = 0  # since the engine started
 
 
 @dataclass

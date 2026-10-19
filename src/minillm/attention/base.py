@@ -1,5 +1,10 @@
-"""The attention-backend interface. Prefill shapes are fixed at M0; decode/KV layout is decided at M5
-(decision 7, see docs/decisions/)."""
+"""The attention-backend interface (decision 7).
+
+- `prefill`: attention over contiguous k/v (no cache, M1's KVCache, M3's padded batches). Used by
+  `generate.py` and the correctness tests.
+- `forward`: the engine's path from M5: ragged tokens, k/v in the paged pool, described by `AttentionMetadata`.
+  The torch reference (M5a), FlashInfer (M5b) and flash-attn (M5c) implement it on the same layout.
+"""
 
 from __future__ import annotations
 
@@ -28,5 +33,13 @@ class AttentionBackend(ABC):
         """
 
     @abstractmethod
-    def decode(self, q: torch.Tensor, kv_cache, block_tables, context_lens, **kwargs) -> torch.Tensor:
-        """One new token per sequence, attending to its cached KV via the block table."""
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, k_cache: torch.Tensor,
+                v_cache: torch.Tensor, meta) -> torch.Tensor:
+        """One layer of one engine step on paged KV.
+
+        q [N, H, Dh], k, v [N, Hkv, Dh]: this step's new tokens, all sequences concatenated (ragged).
+        k_cache, v_cache [num_blocks, block_size, Hkv, Dh]: the layer's pool. `meta` (AttentionMetadata)
+        says which tokens belong to which sequence, where they go (`slot_mapping`) and which blocks hold each
+        sequence's context (`block_tables`, `seq_lens`). Writes k, v into the pool, then returns each new
+        token's causal attention over its sequence's context, [N, H, Dh].
+        """

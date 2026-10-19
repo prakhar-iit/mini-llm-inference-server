@@ -15,6 +15,13 @@ def real_model_dir() -> Path | None:
     return d if (d / "config.json").exists() else None
 
 
+def assert_idle(core) -> None:
+    """Nothing queued or running, no KV held, and R3: every block back in the free list exactly once."""
+    s = core.stats()
+    assert (s.num_waiting, s.num_running, s.kv_tokens_used, s.kv_blocks_used) == (0, 0, 0, 0), s
+    core.check_blocks()
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     # A stub that still raises NotImplementedError("M0: ...") shows up as a skip naming the milestone,

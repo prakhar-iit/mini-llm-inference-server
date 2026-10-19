@@ -26,6 +26,11 @@ joins as soon as a slot is free and leaves the moment it finishes.
 - **Preemption:** none at M4, because slots reserve their full length. From M5 (paged KV, blocks
   allocated as tokens are generated), the newest running request is preempted first and resumes by
   recompute.
+- **Since M5a (paged KV):** capacity is blocks, not slots. A request is admitted when the pool has blocks for
+  all its tokens plus one for every request whose next token starts a new block (a one-step lookahead, so an
+  admission doesn't force a preemption on the next decode). The token budget counts real tokens, since a ragged
+  step has no padding. A decode step that finds no free block preempts the newest running request; it goes back
+  to the front of the queue and is recomputed (prompt + output so far) when admitted again.
 - **Priority hook:** admission order comes from one method, `Scheduler._admission_order()`. Today it
   returns the queue as it is. D4/P3 will change only this method so resumed agent sessions can jump
   the queue.

@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from minillm.generate import greedy_generate, greedy_generate_batch, pad_left
-from minillm.model.kv_cache import KVCache
+from minillm.cache.contiguous import KVCache
 from minillm.model.loader import from_hf_model
 from test_g0_correctness import TINY_VARIANTS, tiny_hf_model
 

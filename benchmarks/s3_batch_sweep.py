@@ -33,7 +33,7 @@ from s1_prefill_decode import GPUS, CostModel, sync  # noqa: E402
 from minillm.device import select_device  # noqa: E402
 from minillm.engine.core import EngineCore  # noqa: E402
 from minillm.engine.protocol import AddRequest  # noqa: E402
-from minillm.model.kv_cache import KVCache  # noqa: E402
+from minillm.cache.contiguous import KVCache  # noqa: E402
 from minillm.model.loader import load_model  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent

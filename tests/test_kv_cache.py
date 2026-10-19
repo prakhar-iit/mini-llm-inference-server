@@ -11,7 +11,7 @@ from conftest import real_model_dir
 from minillm.device import select_device
 from minillm.generate import greedy_generate, greedy_generate_no_cache
 from minillm.model.config import LlamaConfig
-from minillm.model.kv_cache import KVCache
+from minillm.cache.contiguous import KVCache
 from minillm.model.loader import from_hf_model, load_model
 from test_g0_correctness import G0_PROMPTS, TINY_VARIANTS, tiny_hf_model
 from test_model_config import LLAMA_32_1B

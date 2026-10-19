@@ -28,7 +28,7 @@ from pathlib import Path
 import torch
 
 from minillm.device import select_device
-from minillm.model.kv_cache import KVCache
+from minillm.cache.contiguous import KVCache
 from minillm.model.loader import load_model
 
 REPO = Path(__file__).resolve().parent.parent

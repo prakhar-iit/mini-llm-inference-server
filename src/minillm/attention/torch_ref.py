@@ -2,7 +2,7 @@
 
 - M0/M1: `prefill` with scaled_dot_product_attention: causal, and on top of a KV cache.
 - M3: a padding mask for left-padded batches (`key_valid`); M4 reuses it for rows of different lengths.
-- M5 (to build): `decode` that gathers KV blocks through the block table, then runs SDPA.
+- M5a: `forward` on paged KV, in `paged_torch_ref.py`: gathers blocks through the block table, then SDPA.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import torch
 import torch.nn.functional as F
 
 from .base import AttentionBackend
+from .paged_torch_ref import paged_attention, write_kv
 
 
 class TorchRefBackend(AttentionBackend):
@@ -42,5 +43,6 @@ class TorchRefBackend(AttentionBackend):
         mask = torch.ones(tq, tk, dtype=torch.bool, device=q.device).tril(diagonal=tk - tq)
         return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, enable_gqa=True)
 
-    def decode(self, q, kv_cache, block_tables, context_lens, **kwargs):
-        raise NotImplementedError("M5")
+    def forward(self, q, k, v, k_cache, v_cache, meta):
+        write_kv(k_cache, v_cache, meta.slot_mapping, k, v)
+        return paged_attention(q, k_cache, v_cache, meta)

@@ -1,14 +1,18 @@
-"""M4 continuous batching. The slot cache and the scheduler change cost, never output: in fp32 every request's
-tokens equal greedy_generate's, whatever joins or leaves the batch around it (G1a, rerun for M4)."""
+"""M4 continuous batching. Caches and scheduling change cost, never output: in fp32 every request's tokens equal
+greedy_generate's, whatever joins or leaves the batch around it (G1a, rerun for M4).
+
+The slot cache tests pin down `cache/slot.py` (the M4 engine's cache, now S5's contiguous baseline). The engine
+tests run on whatever the engine uses now (paged KV since M5a); the paged scheduler has its own tests in
+test_paged.py."""
 
 import pytest
 import torch
 
 from minillm.engine.core import EngineCore
-from minillm.engine.protocol import AddRequest, EngineStats
-from minillm.engine.scheduler import Request, Scheduler
+from conftest import assert_idle
+from minillm.engine.protocol import AddRequest
 from minillm.generate import greedy_generate
-from minillm.model.kv_cache import SlotKVCache
+from minillm.cache.slot import SlotKVCache
 from minillm.model.loader import from_hf_model
 from test_g0_correctness import TINY_VARIANTS, tiny_hf_model
 
@@ -129,64 +133,6 @@ def test_positions_continue_per_row(model):
     assert view.positions(torch.zeros(2, 1, dtype=torch.long)).tolist() == [[3], [5]]
 
 
-# ---------- the scheduler ----------
-
-
-def req(rid, n_prompt, max_tokens=4):
-    return Request(rid, list(range(3, 3 + n_prompt)), max_tokens, frozenset(), {})
-
-
-def test_fcfs_admission_by_slots_and_padded_budget():
-    s = Scheduler(max_num_seqs=3, max_num_batched_tokens=40)
-    rs = [req("r0", 10), req("r1", 10), req("r2", 30), req("r3", 5)]
-    for r in rs:
-        s.add(r)
-    out = s.schedule()
-    # r0 + r1 pad to 2 × 10 = 20 tokens; adding r2 would pad to 3 × 30 = 90 > 40.
-    assert [r.req_id for r in out.prefill] == ["r0", "r1"] and out.decode == []
-    assert [r.slot for r in out.prefill] == [0, 1]
-    out = s.schedule()
-    assert [r.req_id for r in out.prefill] == ["r2"] and out.prefill[0].slot == 2
-    out = s.schedule()  # r3 waits: no free slot, so every running request decodes
-    assert out.prefill == [] and [r.req_id for r in out.decode] == ["r0", "r1", "r2"]
-
-
-def test_head_request_is_admitted_over_budget():
-    s = Scheduler(max_num_seqs=2, max_num_batched_tokens=8)
-    s.add(req("big", 20))
-    assert [r.req_id for r in s.schedule().prefill] == ["big"]  # no chunked prefill before M7
-
-
-def test_no_skipping_past_the_head():
-    s = Scheduler(max_num_seqs=4, max_num_batched_tokens=25)
-    s.add(req("long", 20))
-    s.add(req("short", 3))
-    assert [r.req_id for r in s.schedule().prefill] == ["long"]  # 2 × 20 > 25: short waits its turn
-    assert [r.req_id for r in s.schedule().prefill] == ["short"]
-
-
-def test_release_fills_holes_from_the_tail():
-    s = Scheduler(max_num_seqs=5, max_num_batched_tokens=1000)
-    rs = [req(f"r{i}", 2) for i in range(5)]
-    for r in rs:
-        s.add(r)
-    s.schedule()
-    assert s.release([rs[1], rs[4]]) == [(3, 1)]  # r3 moves into r1's slot; r4's slot was already at the end
-    assert [r.req_id for r in s.running] == ["r0", "r3", "r2"]
-    assert [r.slot for r in s.running] == [0, 1, 2] and rs[1].slot == rs[4].slot == -1
-    assert s.release([rs[0], rs[3]]) == [(2, 0)]
-    assert [(r.req_id, r.slot) for r in s.running] == [("r2", 0)]
-
-
-def test_remove_waiting():
-    s = Scheduler(max_num_seqs=1, max_num_batched_tokens=100)
-    s.add(req("a", 2))
-    s.add(req("b", 2))
-    s.schedule()
-    assert s.remove_waiting("b").req_id == "b" and s.remove_waiting("b") is None
-    assert s.remove_waiting("a") is None  # running, not waiting
-
-
 # ---------- the engine core ----------
 
 
@@ -218,7 +164,7 @@ def test_tokens_match_batch_1_under_churn(model):
     decode_steps = [r for r in core.step_log if r.prefill_tokens == 0]
     assert all(r.num_seqs == r.decode_tokens for r in decode_steps)  # a finished request leaves at once
     assert max(r.num_seqs for r in core.step_log) == 3
-    assert core.stats() == EngineStats(0, 0, 0)
+    assert_idle(core)
 
 
 def test_late_request_joins_the_running_batch(model):
@@ -235,7 +181,7 @@ def test_late_request_joins_the_running_batch(model):
     assert tokens(outs, "late") == greedy_generate(model, torch.tensor([prompt(31)]), 3)
 
 
-def test_freed_slot_is_refilled_next_step(model):
+def test_freed_capacity_is_refilled_next_step(model):
     core = EngineCore(model, max_batch_size=2, max_num_batched_tokens=64)
     core.add_request(AddRequest("long", prompt(32), 20))
     core.add_request(AddRequest("short", prompt(33), 2))
@@ -256,7 +202,7 @@ def test_token_budget_splits_a_prefill(model):
     assert len(outs) == 2
 
 
-def test_abort_frees_the_slot(model):
+def test_abort_frees_capacity(model):
     core = EngineCore(model, max_batch_size=2, max_num_batched_tokens=64)
     for i in range(3):
         core.add_request(AddRequest(f"x{i}", prompt(40 + i), 30))
@@ -264,7 +210,7 @@ def test_abort_frees_the_slot(model):
     collect(core.step(), outs)
     assert core.stats().num_running == 2 and core.stats().num_waiting == 1
     core.abort("x0")
-    collect(core.step(), outs)  # reports the abort; x2 takes the freed slot in the same step
+    collect(core.step(), outs)  # reports the abort; x2 takes the freed place in the same step
     assert outs["x0"][-1].finish_reason == "abort"
     assert core.stats().num_running == 2 and core.stats().num_waiting == 0
     run_to_completion(core, outs)
@@ -282,4 +228,4 @@ def test_kv_stats_count_tokens_held(model):
     core.step()
     assert core.stats().kv_tokens_used == 11
     run_to_completion(core)
-    assert core.stats() == EngineStats(0, 0, 0)
+    assert_idle(core)

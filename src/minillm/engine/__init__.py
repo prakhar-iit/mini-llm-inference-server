@@ -2,7 +2,7 @@
 
 - M3: static batching.
 - M4: continuous (iteration-level) batching scheduler (`scheduler.py`), admission control in the frontend.
-- M5: block manager, paged KV cache, eviction by recompute.
+- M5: block manager (`block_manager.py`), paged KV (pool in `cache/paged.py`), preemption by recompute.
 - M6: prefix cache (chained block hashes, refcount, LRU).
 - M7: chunked prefill (token budget per step).
 

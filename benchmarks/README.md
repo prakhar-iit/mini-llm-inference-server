@@ -21,7 +21,7 @@ It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
 |---|---|
 | `workloads.py` | Builds requests as token ids: `random`, A (arXiv), B (UltraChat), C (agent sessions; JSONL save/load) |
 | `client.py` | Open-loop client for any OpenAI-compatible server: gamma arrivals, per-token timestamps, sessions, SLO summary |
-| `s0_no_cache.py` … `s4_mixed_traffic.py` | Study scripts (S0–S4); each docstring has the full and the Mac smoke command |
+| `s0_no_cache.py` … `s5_kv_pressure.py` | Study scripts (S0–S5); each docstring has the full and the Mac smoke command |
 | `g2_quality.py` | G2 quality gate (perplexity + GSM8K) with baseline save/check |
 
 ```bash

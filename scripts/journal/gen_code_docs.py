@@ -190,44 +190,96 @@ add("M3", "tests/test_batching.py", "test", "python", at_ref("m3", "tests/test_b
     "G1a (fp32 exact under padding), positions, NaN safety, G1b math and the real-model G1b.",
     ["Which injected bug did the output tests miss, and which test catches it?"])
 
-# ---------------- M4 (in progress: working tree vs m3) ----------------
-add("M4", "src/minillm/engine/scheduler.py", "new", "python", working("src/minillm/engine/scheduler.py"),
+# ---------------- M4 (tag m4) ----------------
+add("M4", "src/minillm/engine/scheduler.py", "new", "python", at_ref("m4", "src/minillm/engine/scheduler.py"),
     "Iteration-level scheduler (decision 9): FCFS admission without skipping, slots, a padded token budget, compaction.",
     ["Walk `schedule()` for queued prompts of 10, 10, 30 tokens with 3 slots and a budget of 40. What runs each step?",
      "Why stop at the first request that doesn't fit instead of skipping to a smaller one behind it?",
      "Why is the head request admitted even when it alone exceeds the budget, and which milestone removes that exception?",
      "`release`: which requests move, and why does that keep every decode step a view rather than a gather?"])
-add("M4", "src/minillm/model/kv_cache.py", "changed", "diff", diff("m3", "src/minillm/model/kv_cache.py"),
+add("M4", "src/minillm/model/kv_cache.py", "changed", "diff", git("diff", "-U4", "m3", "m4", "--", "src/minillm/model/kv_cache.py"),
     "`SlotKVCache`: one slot per running request, max_model_len reserved each; `SlotBatch` is one forward pass's view.",
     ["How much KV does the server reserve at startup for Llama-3.1-8B with 8 slots of 8,192 tokens in bf16?",
      "Why is prefill right-padded here when M3 left-padded? What would break with left padding?",
      "Decode rows have different lengths: how is each row's new k/v written, and which keys does the attention see?",
      "Why are slot lengths kept in Python rather than in a tensor?"])
-add("M4", "src/minillm/attention/torch_ref.py", "changed", "diff", diff("m3", "src/minillm/attention/torch_ref.py"),
+add("M4", "src/minillm/attention/torch_ref.py", "changed", "diff", git("diff", "-U4", "m3", "m4", "--", "src/minillm/attention/torch_ref.py"),
     "A query may see its own slot only when it sees no real key at all.",
     ["With M3's rule (always allow the own position), which slot does a short decode row read in an M4 batch?",
      "Why is the new rule identical to M3's on left-padded batches?"])
-add("M4", "src/minillm/model/llama.py", "changed", "diff", diff("m3", "src/minillm/model/llama.py"),
+add("M4", "src/minillm/model/llama.py", "changed", "diff", git("diff", "-U4", "m3", "m4", "--", "src/minillm/model/llama.py"),
     "Positions come from the cache; `last_index` picks each right-padded row's last real token.",
     ["Why move the position logic into the cache classes?"])
-add("M4", "src/minillm/engine/core.py", "changed", "diff", diff("m3", "src/minillm/engine/core.py"),
+add("M4", "src/minillm/engine/core.py", "changed", "diff", git("diff", "-U4", "m3", "m4", "--", "src/minillm/engine/core.py"),
     "Continuous batching: each step is a prefill of newly admitted requests or a decode of all running ones.",
     ["Trace three requests (outputs 2, 5, 3 tokens, 2 slots) step by step: which slots, which moves, which outputs?",
      "Why do running requests pause during a prefill step, and what does S4 predict that costs?",
      "Why can an M4 server never run out of KV memory mid-request? What does it pay for that?"])
-add("M4", "src/minillm/server/api.py", "changed", "diff", diff("m3", "src/minillm/server/api.py"),
+add("M4", "src/minillm/server/api.py", "changed", "diff", git("diff", "-U4", "m3", "m4", "--", "src/minillm/server/api.py"),
     "R2 admission control: at most max_batch_size + max_waiting in flight; the rest get 503 with Retry-After.",
     ["Why count in-flight requests in the frontend instead of asking the engine?",
      "What does `_ReleasingStream` protect against, and why isn't the stream generator's `finally` enough?"])
-add("M4", "benchmarks/s4_mixed_traffic.py", "tool", "python", working("benchmarks/s4_mixed_traffic.py"),
+add("M4", "benchmarks/s4_mixed_traffic.py", "tool", "python", at_ref("m4", "benchmarks/s4_mixed_traffic.py"),
     "S4: goodput, per-class TTFT and B's inter-token latency vs arrival rate on the Mix workload, M3 vs M4.",
     ["Why is goodput judged per request against its own class's SLO?",
      "Which column shows the ITL spike when an A prompt joins, and why measure it on B requests only?"])
-add("M4", "tests/test_continuous_batching.py", "test", "python", working("tests/test_continuous_batching.py"),
+add("M4", "tests/test_continuous_batching.py", "test", "python", at_ref("m4", "tests/test_continuous_batching.py"),
     "M4 spec: slot cache vs batch 1 (all tiny variants), scheduler rules, engine churn, joins, aborts, KV stats.",
     ["Why fill the buffers with 1e4 instead of NaN in `test_stale_slot_contents_are_never_read`?"])
 
-order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300, "M4": 400}
+# ---------------- M5a (in progress: working tree vs m4) ----------------
+add("M5a", "src/minillm/cache/paged.py", "new", "python", working("src/minillm/cache/paged.py"),
+    "The paged pool: per layer, K and V tensors [num_blocks, 16, Hkv, Dh]; `PagedStep` is one step's view of it.",
+    ["Where does token 37 of a request with block table [9, 4, 12] live? Give block and offset.",
+     "How many blocks fit in 1 GiB for Llama-3.2-1B in bf16? How many tokens is that?",
+     "Why does `PagedStep` have nothing to mark or advance, unlike M1's KVCache?"])
+add("M5a", "src/minillm/attention/metadata.py", "new", "python", working("src/minillm/attention/metadata.py"),
+    "Per-step metadata for a ragged batch: query_start_loc, seq_lens, positions, slot_mapping, block_tables.",
+    ["Build the metadata by hand for a decode step of a 20-token request plus a fresh 3-token prompt (block size 16).",
+     "Why is it built once per step on the host, and not per layer?"])
+add("M5a", "src/minillm/attention/paged_torch_ref.py", "new", "python", working("src/minillm/attention/paged_torch_ref.py"),
+    "Reference paged attention: write new k/v by slot, gather each sequence's blocks, run SDPA.",
+    ["Why are decode rows attended together but multi-token rows one at a time?",
+     "What does the gather cost per step, and what does a fused kernel (M5b/M5c) do instead?",
+     "Which mask does a prompt continued on top of cached tokens need?"])
+add("M5a", "src/minillm/engine/block_manager.py", "new", "python", working("src/minillm/engine/block_manager.py"),
+    "The free list of block ids, and the R3 check: free + held = total, nothing held twice.",
+    ["Why does the block manager not know which request holds which block?"])
+add("M5a", "src/minillm/engine/scheduler.py", "changed", "diff", diff("m4", "src/minillm/engine/scheduler.py"),
+    "Admission by blocks with a one-step lookahead; preemption of the newest request by recompute.",
+    ["Why reserve a block only for requests at a block boundary, rather than one per running request?",
+     "Walk a preemption: which request goes, what happens to its blocks and output, where does it re-enter the queue?",
+     "Why does a preempted request recompute prompt + output rather than keeping its KV somewhere?"])
+add("M5a", "src/minillm/engine/core.py", "changed", "diff", diff("m4", "src/minillm/engine/core.py"),
+    "Each step: the scheduled requests' uncached tokens, flattened into one ragged row, plus its metadata.",
+    ["What are a request's uncached tokens on a fresh prefill, a decode, and a resume after preemption?",
+     "Why can the same code path later run M7's chunked prefill?"])
+add("M5a", "src/minillm/model/llama.py", "changed", "diff", diff("m4", "src/minillm/model/llama.py"),
+    "A ragged branch in attention: [1, heads, N, Dh] to [N, heads, Dh], then the backend's paged forward.",
+    ["Why can RMSNorm, the MLP and RoPE run unchanged on a ragged row?"])
+add("M5a", "tests/test_paged.py", "test", "python", working("tests/test_paged.py"),
+    "Paged attention vs dense, model vs batch 1 on scattered blocks, block manager, scheduler, preemption, R3.",
+    ["Which test proves a preempted request still produces exactly its batch-1 tokens?"])
+
+add("M5a", "benchmarks/s5_kv_pressure.py", "tool", "python", working("benchmarks/s5_kv_pressure.py"),
+    "S5: concurrency and block fill at fixed KV memory, the preemption cliff as the pool shrinks, decode by backend.",
+    ["How many contiguous slots fit in 8 GiB for Llama-3.1-8B at max_model_len 8192? How many paged requests of ~600 tokens?",
+     "Why does recompute after preemption show up as extra prefill tokens, and where does it hurt latency?"])
+
+# ---------------- M5b / M5c (coded on the Mac; first run in the GPU session) ----------------
+add("M5b", "src/minillm/attention/flashinfer_backend.py", "changed", "diff", diff("m4", "src/minillm/attention/flashinfer_backend.py"),
+    "FlashInfer on decision 7's pages: the shared slot write, plan() once per step, decode or prefill wrapper.",
+    ["Why is plan() keyed on the AttentionMetadata object, and what would planning per layer cost?",
+     "Build kv_indptr, kv_indices and kv_last_page_len for sequences of 5 and 40 tokens with tables [3] and [8, 1, 6]."])
+add("M5c", "src/minillm/attention/flash_attn_backend.py", "new", "python", working("src/minillm/attention/flash_attn_backend.py"),
+    "vLLM's flash-attn on the same pages: one varlen call per layer with cu_seqlens_q, seqused_k and the block table.",
+    ["Why can't upstream flash-attn 2 read these pages?",
+     "flash-attn has no plan step. What does FlashInfer's plan buy it, and when does that matter (M8)?"])
+add("M5b", "tests/test_kernels.py", "test", "python", working("tests/test_kernels.py"),
+    "Kernels vs the reference on one GPU: a mixed ragged step, a decode-only step, and teacher-forced G1b on the 1B.",
+    ["Why compare against the reference in bf16 with a tolerance instead of exact tokens?"])
+
+order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300, "M4": 400, "M5a": 500, "M5b": 600, "M5c": 700}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i
     m["lines"] = m["code"].count("\n") + 1

@@ -182,6 +182,7 @@ def test_r1_disconnect_aborts_request(server, reference):
     assert aborts == aborts_before + 1, "request was not aborted after the client disconnected"
     assert metric(base, "minillm:num_requests_running") == 0
     assert metric(base, "minillm:kv_cache_tokens_used") == 0
+    assert metric(base, "minillm:kv_cache_usage_perc") == 0  # R1 from M5: every block it held is free again
     # The server keeps working afterwards.
     r = httpx.post(base + "/v1/completions", json={"prompt": PROMPT, "max_tokens": 5, "return_token_ids": True})
     assert r.json()["choices"][0]["token_ids"] == reference(PROMPT, 5)

@@ -110,6 +110,8 @@ class Metrics:
         self.running = Gauge("minillm:num_requests_running", "Requests being generated", registry=r)
         self.waiting = Gauge("minillm:num_requests_waiting", "Requests queued in the engine", registry=r)
         self.kv_tokens = Gauge("minillm:kv_cache_tokens_used", "Tokens held in KV caches", registry=r)
+        self.kv_usage = Gauge("minillm:kv_cache_usage_perc", "Fraction of KV pool blocks in use", registry=r)
+        self.preemptions = Gauge("minillm:num_preemptions", "Requests preempted since start", registry=r)
 
     def observe(self, timeline: dict[str, int], out: RequestOutput) -> None:
         reason = out.finish_reason or "unknown"
@@ -158,7 +160,9 @@ class IncrementalDetokenizer:
 def create_app(model_dir: str, device: str = "auto", max_model_len: int | None = None,
                served_model_name: str | None = None, step_log_path: str | None = None,
                timeline_log_path: str | None = None, max_batch_size: int = 8,
-               max_num_batched_tokens: int | None = None, max_waiting: int = 64) -> FastAPI:
+               max_num_batched_tokens: int | None = None, max_waiting: int = 64,
+               kv_cache_gb: float | None = None, attention_backend: str = "torch_ref",
+               gpu_memory_utilization: float = 0.9) -> FastAPI:
     from pathlib import Path
 
     from ..model.config import LlamaConfig
@@ -178,7 +182,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size, max_num_batched_tokens)
+        engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size, max_num_batched_tokens,
+                              kv_cache_gb, attention_backend, gpu_memory_utilization)
         state["engine"] = engine
         await engine.start()
         yield
@@ -221,6 +226,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
         metrics.running.set(s.num_running)
         metrics.waiting.set(s.num_waiting)
         metrics.kv_tokens.set(s.kv_tokens_used)
+        metrics.kv_usage.set(s.kv_blocks_used / s.kv_blocks_total if s.kv_blocks_total else 0.0)
+        metrics.preemptions.set(s.num_preemptions)
         return Response(generate_latest(metrics.registry), media_type=CONTENT_TYPE_LATEST)
 
     def validate(body: _Common, prompt_ids: list[int], max_tokens: int) -> None:

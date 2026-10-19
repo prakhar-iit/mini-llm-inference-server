@@ -1,12 +1,16 @@
-"""Iteration-level scheduler (M4, decision 9).
+"""Iteration-level scheduler (M4, decision 9) on paged KV (M5a).
 
 Every engine step asks `schedule()` what to run:
-- requests waiting and a slot free -> a prefill step: admit FCFS, without skipping, while slots are free and
-  the padded prefill fits `max_num_batched_tokens` (the head request is always admitted);
-- otherwise -> a decode step for every running request.
-Running requests occupy slots [0, n) in `running` order. When some leave, `release` moves requests from the
-tail into the holes and returns the copies the KV cache must make, so the slots stay contiguous.
-The scheduler only does bookkeeping: no tensors, no model.
+- requests waiting and room for one more -> a prefill step: admit FCFS, without skipping, while
+  - fewer than `max_num_seqs` run,
+  - the step's prompt tokens fit `max_num_batched_tokens` (the head request is always admitted; no padding
+    since M5, so real tokens are counted),
+  - the pool has blocks for the request's tokens, plus one for every request (running, just admitted, or this
+    one) whose next token starts a new block, so admitting it doesn't force a preemption on the next decode step;
+- otherwise -> a decode step for every running request. A request whose next token starts a new block gets one;
+  when none is free, the newest running request is preempted: its blocks are freed and it goes back to the front
+  of the queue, to be recomputed (prompt + output so far) when it is admitted again.
+The scheduler only does bookkeeping: block ids, no tensors, no model.
 """
 
 from __future__ import annotations
@@ -15,8 +19,10 @@ from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from .block_manager import BlockManager
 
-@dataclass
+
+@dataclass(eq=False)  # compared by identity: two requests with equal fields are still two requests
 class Request:
     req_id: str
     prompt: list[int]
@@ -24,60 +30,104 @@ class Request:
     stop_ids: frozenset[int]
     timeline: dict[str, int]
     output: list[int] = field(default_factory=list)
-    slot: int = -1  # index into `running` and the KV cache while running; -1 while waiting
+    block_ids: list[int] = field(default_factory=list)  # its block table, while it holds KV
+    num_cached: int = 0  # tokens whose k/v are in the pool
+    num_preemptions: int = 0
+
+    @property
+    def num_tokens(self) -> int:
+        return len(self.prompt) + len(self.output)
+
+    def uncached(self) -> list[int]:
+        """The tokens this step must compute: the whole prompt (and output, after a preemption) on a prefill,
+        the newest token on a decode step."""
+        tokens = self.prompt + self.output
+        return tokens[self.num_cached:]
 
 
 @dataclass
 class SchedulerOutput:
-    prefill: list[Request]  # admitted this step; their slots are contiguous and come after every running one
-    decode: list[Request]  # every running request, in slot order (empty on a prefill step)
+    prefill: list[Request]  # admitted this step, in admission order
+    decode: list[Request]  # every running request (empty on a prefill step)
+    preempted: list[Request] = field(default_factory=list)  # sent back to the queue this step
 
 
 class Scheduler:
-    def __init__(self, max_num_seqs: int, max_num_batched_tokens: int) -> None:
+    def __init__(self, max_num_seqs: int, max_num_batched_tokens: int, blocks: BlockManager) -> None:
         self.max_num_seqs = max_num_seqs
         self.max_num_batched_tokens = max_num_batched_tokens
+        self.blocks = blocks
         self.waiting: deque[Request] = deque()
-        self.running: list[Request] = []  # running[i].slot == i
+        self.running: list[Request] = []  # admission order: the newest is last
+        self.num_preemptions = 0
 
     def add(self, req: Request) -> None:
         self.waiting.append(req)
 
     def schedule(self) -> SchedulerOutput:
-        free = self.max_num_seqs - len(self.running)
-        if free and self.waiting:
-            admitted: list[Request] = []
-            longest = 0
-            for req in self._admission_order():
-                longest = max(longest, len(req.prompt))
-                # Padded tokens: the prefill computes every row at the longest prompt's length.
-                if admitted and (len(admitted) + 1) * longest > self.max_num_batched_tokens:
-                    break  # FCFS without skipping: nothing behind the head-of-line request jumps it
-                admitted.append(req)
-                if len(admitted) == free:
-                    break
-            for req in admitted:
-                self.waiting.remove(req)
-                req.slot = len(self.running)
-                self.running.append(req)
+        admitted = self._admit()
+        if admitted:
             return SchedulerOutput(prefill=admitted, decode=[])
-        return SchedulerOutput(prefill=[], decode=list(self.running))
+        preempted = self._grow_running()
+        return SchedulerOutput(prefill=[], decode=list(self.running), preempted=preempted)
 
-    def release(self, reqs: list[Request]) -> list[tuple[int, int]]:
-        """Remove finished or aborted running requests; return the (src, dst) slot moves that keep slots contiguous."""
-        gone = {id(r) for r in reqs}
-        n = len(self.running) - len(gone)
-        holes = sorted(r.slot for r in reqs if r.slot < n)
-        movers = [r for r in self.running[n:] if id(r) not in gone]
-        moves = []
-        for req, hole in zip(movers, holes):
-            moves.append((req.slot, hole))
-            self.running[hole] = req
-            req.slot = hole
-        del self.running[n:]
-        for r in reqs:
-            r.slot = -1
-        return moves
+    def _admit(self) -> list[Request]:
+        admitted: list[Request] = []
+        tokens = 0
+        bs = self.blocks.block_size
+        # Blocks the next decode step will need: a running request whose next token starts a new block.
+        # (Running requests don't decode during this prefill step, so their next write is still at num_cached.)
+        reserve = sum(1 for r in self.running if r.num_cached >= len(r.block_ids) * bs)
+        for req in self._admission_order():
+            if len(self.running) == self.max_num_seqs:
+                break
+            n = req.num_tokens
+            if admitted and tokens + n > self.max_num_batched_tokens:
+                break
+            need = self.blocks.blocks_for(n)
+            spare = 1 if n == need * bs else 0  # after its prefill, its next token starts a new block
+            if need + spare + reserve > self.blocks.num_free:
+                break  # FCFS without skipping: nothing behind the head-of-line request jumps it
+            req.block_ids = self.blocks.allocate(need)
+            reserve += spare
+            tokens += n
+            admitted.append(req)
+            self.running.append(req)
+        for req in admitted:
+            self.waiting.remove(req)
+        return admitted
+
+    def _grow_running(self) -> list[Request]:
+        """Give every running request room for its next token, preempting the newest when the pool is empty."""
+        preempted: list[Request] = []
+        for req in list(self.running):  # oldest first
+            if req not in self.running:  # preempted earlier in this loop
+                continue
+            if req.num_cached < len(req.block_ids) * self.blocks.block_size:
+                continue  # its last block still has room
+            while self.blocks.num_free == 0:
+                victim = self.running[-1]
+                self._preempt(victim)
+                preempted.append(victim)
+                if victim is req:
+                    break
+            if req in self.running:
+                req.block_ids += self.blocks.allocate(1)
+        return preempted
+
+    def _preempt(self, req: Request) -> None:
+        self.running.remove(req)
+        self.blocks.free(req.block_ids)
+        req.num_cached = 0
+        req.num_preemptions += 1
+        self.num_preemptions += 1
+        self.waiting.appendleft(req)  # it arrived before everything still waiting
+
+    def finish(self, reqs: list[Request]) -> None:
+        """Remove finished or aborted running requests and free their blocks."""
+        for req in reqs:
+            self.running.remove(req)
+            self.blocks.free(req.block_ids)
 
     def remove_waiting(self, req_id: str) -> Request | None:
         req = next((r for r in self.waiting if r.req_id == req_id), None)
@@ -87,4 +137,4 @@ class Scheduler:
 
     def _admission_order(self) -> Iterable[Request]:
         """The priority hook (decision 9): the order waiting requests are considered in. FCFS today."""
-        return self.waiting
+        return list(self.waiting)
