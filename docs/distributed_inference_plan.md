@@ -60,10 +60,12 @@ step that follows it. A milestone is done when its tests pass and its study note
 8. ⚑ 9 Scheduler policy
 9. M4 Continuous batching — **R2** overload/backpressure · S4
 10. ⚑ 7 Attention backend and KV layout
-11. M5 Paged KV + block manager — **R3** KV block accounting · S5
+11. M5a Paged KV + block manager on the torch reference backend (Mac) — **R3** KV block accounting · S5;
+    then M5b FlashInfer and M5c flash-attn (vLLM's fork), coded on the Mac, tests skip without CUDA
 12. ⚑ 8 Block-hash spec
 13. M6 Prefix caching · S6
-14. **R4** soak test → tag and **ship v1**
+14. One GPU session for everything CUDA-only: M5b and M5c checked against the reference backend under G1b,
+    S5 kernel comparison → **R4** soak test → tag and **ship v1**
 
 **Phase 1b — Optimizations → v1.1**
 15. M7 Chunked prefill · S7
@@ -149,8 +151,9 @@ scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0
 - G2 runs in full only on the GPU (32K-token perplexity + 200 GSM8K questions; ~30 min per engine on
   the Mac). The first GPU session records the HF baseline (`benchmarks/g2_quality.py --engine hf
   --save-baseline`), then checks every milestone tag against it. The Mac only smoke-runs it.
-- One short g6.xlarge check (~1 hour) when M5 lands: FlashInfer and the KV layout (decision 7) are the
-  first CUDA-only code, and a layout problem found at v1 would mean reworking M5 and M6.
+- One g6.xlarge session (~2–3 hours) after M6 tests all CUDA-only code at once: M5b (FlashInfer) and M5c
+  (flash-attn) are written on the Mac first. A layout problem found there means reworking M5a–M6 (decision 7),
+  so the layout is chosen to be what both kernels read.
 
 **Workloads (the harness is reused from M2 through Phase 4):**
 
@@ -270,7 +273,9 @@ benchmark client, observability). They shape the whole codebase.
 
 | # | Build | Tests added | Study on own engine | Prediction to check | What it teaches |
 |---|---|---|---|---|---|
-| M5 | Paged KV cache + block manager + eviction by recompute | **R3** | **S5 KV pressure:** max concurrency at fixed memory, contiguous (reserve max_len) vs paged; shrink memory until preemptions start | Contiguous wastes most reserved KV memory; paged waste under ~5%, so concurrency rises several×. Preemption shows up as TTFT/ITL cliffs | Memory, not compute, caps decode throughput |
+| M5a | Paged KV cache + block manager + eviction by recompute, on the torch reference backend (gathers through the block table); ragged per-step batches | **R3** | **S5 KV pressure:** max concurrency at fixed memory, contiguous (reserve max_len) vs paged; shrink memory until preemptions start | Contiguous wastes most reserved KV memory; paged waste under ~5%, so concurrency rises several×. Preemption shows up as TTFT/ITL cliffs | Memory, not compute, caps decode throughput |
+| M5b | FlashInfer backend on the same pages (coded on the Mac; tested in the GPU session after M6) | G1b vs the reference backend, same GPU | **S5, kernel part:** decode step time at batch 1–32 and long context, reference vs FlashInfer vs M4's contiguous slots | The gather-based reference loses badly as context grows; FlashInfer's paged decode runs within ~10% of contiguous | What a paged kernel buys over gather-then-attend |
+| M5c | flash-attn backend (vLLM's fork, block size 16) on the same pages (coded on the Mac; same GPU session) | G1b vs the reference backend, same GPU | **S5, kernel part:** the same sweep, now three-way | FlashInfer and flash-attn within ~10–20% of each other; differences show at small batch and long context | Kernels are interchangeable behind one interface; the layout is the contract |
 
 ⚑ **Decision 8 before M6** (block-hash spec).
 
@@ -449,7 +454,7 @@ decided late, so settle it before writing M2.
 | # | Open decision | Options | Recommendation |
 |---|---|---|---|
 | 9 | **Scheduler policy** (before M4) | FCFS vs priority; preemption victim choice | Token budget per step, FCFS admission, preempt newest first. Leave a priority hook so resumed agent sessions can jump the queue later (D4/P3) |
-| 7 | **Attention backend and KV layout** (before M5) | FlashInfer paged API vs flash-attn `flash_attn_with_kvcache` with block table; block size; NHD vs HND; layer-major vs block-major | FlashInfer, block size 16, per-layer paged tensors. Check the layout lets D3/N3 ship whole blocks layer by layer (overlaps transfer with prefill) |
+| 7 | **Attention backend and KV layout** (before M5) | FlashInfer paged API vs flash-attn `flash_attn_with_kvcache` with block table; block size; NHD vs HND; layer-major vs block-major | Three stages on one layout: M5a torch reference (Mac), M5b FlashInfer, M5c flash-attn (vLLM's fork; upstream needs 256-token blocks). Block size 16, per-layer separate K/V tensors `[blocks, 16, Hkv, Dh]` (NHD). Check the layout lets D3/N3 ship whole blocks layer by layer (overlaps transfer with prefill) |
 | 8 | **Block-hash spec** (before M6) | Python `hash()` vs a specified hash | A specified hash: sha256 (or xxh3-128) over parent hash + token-id bytes + extra keys (model + revision, KV dtype, tenant salt, LoRA id). The Go/Rust router must compute identical hashes; salting from day one makes P2 a policy change, not a migration |
 
 **C. Decide during Phase 2 (each before the step shown)**
