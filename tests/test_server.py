@@ -98,7 +98,8 @@ def test_completion_matches_greedy(server, reference):
     assert choice["token_ids"] == reference(PROMPT, 24)
     n = len(choice["token_ids"])
     assert choice["finish_reason"] == ("length" if n == 24 else "stop")
-    assert r["usage"] == {"prompt_tokens": 10, "completion_tokens": n, "total_tokens": 10 + n}
+    assert r["usage"] == {"prompt_tokens": 10, "completion_tokens": n, "total_tokens": 10 + n,
+                          "prompt_tokens_details": {"cached_tokens": 0}}  # under one block: never cached
     tl = r["minillm_timeline"]
     stages = ["received", "tokenized", "queued", "scheduled", "first_token", "finished"]
     assert [tl[s] for s in stages] == sorted(tl[s] for s in stages)
@@ -296,3 +297,23 @@ def test_r2_overload_is_rejected_with_503(tiny_dir):
     finally:
         proc.terminate()
         proc.wait(timeout=20)
+
+
+def test_prefix_cache_through_the_api(server, reference):
+    """M6: a repeated 40-token prompt is served from 2 cached blocks (the last token is always recomputed), with
+    the same tokens; a different cache_salt shares nothing."""
+    base, _ = server
+    prompt = [(7 * i) % 250 + 3 for i in range(40)]
+
+    def ask(salt=None):
+        body = {"prompt": prompt, "max_tokens": 6, "return_token_ids": True}
+        if salt:
+            body["cache_salt"] = salt
+        return httpx.post(base + "/v1/completions", json=body, timeout=60).json()
+
+    first, second, other = ask(), ask(), ask("tenant-b")
+    assert first["usage"]["prompt_tokens_details"]["cached_tokens"] == 0
+    assert second["usage"]["prompt_tokens_details"]["cached_tokens"] == 32
+    assert other["usage"]["prompt_tokens_details"]["cached_tokens"] == 0
+    assert first["choices"][0]["token_ids"] == second["choices"][0]["token_ids"] == reference(prompt, 6)
+    assert metric(base, "minillm:prefix_cache_hits") >= 32

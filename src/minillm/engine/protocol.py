@@ -23,6 +23,7 @@ class AddRequest:
     stop_token_ids: list[int] = field(default_factory=list)  # EOS and friends; ignored if ignore_eos
     ignore_eos: bool = False  # benchmarks fix output length this way (decision 2)
     timeline: dict[str, int] = field(default_factory=dict)  # frontend stages so far (monotonic ns)
+    cache_salt: str = ""  # M6: requests with different salts never share cached KV (decision 8)
 
 
 @dataclass
@@ -46,6 +47,7 @@ class RequestOutput:
     timeline: dict[str, int] | None = None  # engine stages, sent once the request finishes
     num_prompt_tokens: int = 0
     num_output_tokens: int = 0
+    num_cached_tokens: int = 0  # M6: prompt tokens served from the prefix cache
 
 
 @dataclass
@@ -56,6 +58,9 @@ class EngineStats:
     kv_blocks_used: int = 0  # M5: paged pool blocks held by running requests
     kv_blocks_total: int = 0
     num_preemptions: int = 0  # since the engine started
+    kv_blocks_cached: int = 0  # M6: blocks nobody holds, kept for their cached prefix (counted as free)
+    prefix_cache_queries: int = 0  # M6: prompt tokens looked up since start
+    prefix_cache_hits: int = 0  # M6: of those, tokens served from the cache
 
 
 @dataclass

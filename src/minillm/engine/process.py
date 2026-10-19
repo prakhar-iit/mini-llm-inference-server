@@ -7,6 +7,7 @@ on the frontend.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from dataclasses import asdict
@@ -37,6 +38,7 @@ def run_engine_process(
     kv_cache_gb: float | None = None,
     attention_backend: str = "torch_ref",
     gpu_memory_utilization: float = 0.9,
+    enable_prefix_caching: bool = True,
 ) -> None:
     info = select_device(device)
     model = load_model(model_dir, info.device, info.dtype, backend=get_backend(attention_backend))
@@ -44,7 +46,8 @@ def run_engine_process(
                              max_num_batched_tokens or DEFAULT_MAX_NUM_BATCHED_TOKENS)
     num_blocks = PagedKVCache.blocks_for_bytes(model.config, info.dtype, kv_bytes)
     core = EngineCore(model, max_model_len, step_log=step_log_path is not None, max_batch_size=max_batch_size,
-                      max_num_batched_tokens=max_num_batched_tokens, num_kv_blocks=num_blocks)
+                      max_num_batched_tokens=max_num_batched_tokens, num_kv_blocks=num_blocks,
+                      enable_prefix_caching=enable_prefix_caching, model_id=model_id(model_dir))
     print(f"minillm engine: {attention_backend} attention, KV pool {kv_bytes / 2**30:.2f} GiB = {num_blocks} blocks "
           f"× {BLOCK_SIZE} tokens ({num_blocks * BLOCK_SIZE} tokens)", file=sys.stderr, flush=True)
 
@@ -73,6 +76,16 @@ def run_engine_process(
             outbox.send(encode(core.step()))
         elif core.step_log:
             _flush_step_log(core, step_log_path)  # only when idle: file writes stay off the hot path
+
+
+def model_id(model_dir: str) -> str:
+    """name@revision for the prefix-cache salt (decision 8): a hash of config.json plus the weight index or file
+    sizes, so a different checkpoint in the same directory never matches cached KV."""
+    d = Path(model_dir)
+    h = hashlib.sha256((d / "config.json").read_bytes())
+    for f in sorted(d.glob("*.safetensors*")):
+        h.update(f.name.encode() + str(f.stat().st_size).encode())
+    return f"{d.name}@{h.hexdigest()[:12]}"
 
 
 def kv_pool_bytes(model, device, kv_cache_gb: float | None, utilization: float, profile_tokens: int) -> int:

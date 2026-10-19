@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--gpu-memory-utilization", type=float, default=0.9)
     parser.add_argument("--attention-backend", default="torch_ref", choices=["torch_ref", "flashinfer", "flash_attn"],
                         help="paged attention: torch reference (any device), FlashInfer or flash-attn (CUDA)")
+    parser.add_argument("--no-prefix-caching", action="store_true", help="turn off M6's prefix cache")
     parser.add_argument("--max-num-batched-tokens", type=int, default=None,
                         help="token budget of one prefill step, padding included (default 8192; decision 9)")
     parser.add_argument("--max-waiting", type=int, default=64,
@@ -38,7 +39,8 @@ def main() -> None:
 
     app = create_app(args.model_dir, args.device, args.max_model_len, args.served_model_name,
                      args.step_log, args.timeline_log, args.max_batch_size, args.max_num_batched_tokens,
-                     args.max_waiting, args.kv_cache_gb, args.attention_backend, args.gpu_memory_utilization)
+                     args.max_waiting, args.kv_cache_gb, args.attention_backend, args.gpu_memory_utilization,
+                     not args.no_prefix_caching)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

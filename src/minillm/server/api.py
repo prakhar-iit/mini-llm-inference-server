@@ -4,7 +4,8 @@ Endpoints: POST /v1/completions, POST /v1/chat/completions, GET /v1/models, GET 
 The frontend tokenizes, sends token ids to the engine process, detokenizes what comes back and streams
 it as server-sent events in OpenAI's chunk format.
 
-Extensions to the OpenAI request (all optional): `ignore_eos` (fixed output length for benchmarks),
+Extensions to the OpenAI request (all optional): `cache_salt` (M6: requests with different salts never share
+cached KV; vLLM's name for it), `ignore_eos` (fixed output length for benchmarks),
 `return_token_ids` (each choice carries the token ids it added; used by G0-through-the-API and by the
 workload C client to append exact tokens). Every final response or final stream chunk carries
 `minillm_timeline` (decision 6): monotonic-ns timestamps for each stage of the request.
@@ -50,6 +51,7 @@ class _Common(BaseModel):
     stop: str | list[str] | None = None
     ignore_eos: bool = False
     return_token_ids: bool = False
+    cache_salt: str | None = None
 
 
 class CompletionRequest(_Common):
@@ -112,6 +114,10 @@ class Metrics:
         self.kv_tokens = Gauge("minillm:kv_cache_tokens_used", "Tokens held in KV caches", registry=r)
         self.kv_usage = Gauge("minillm:kv_cache_usage_perc", "Fraction of KV pool blocks in use", registry=r)
         self.preemptions = Gauge("minillm:num_preemptions", "Requests preempted since start", registry=r)
+        self.prefix_queries = Gauge("minillm:prefix_cache_queries", "Prompt tokens looked up in the prefix cache",
+                                    registry=r)
+        self.prefix_hits = Gauge("minillm:prefix_cache_hits", "Prompt tokens served from the prefix cache",
+                                 registry=r)
 
     def observe(self, timeline: dict[str, int], out: RequestOutput) -> None:
         reason = out.finish_reason or "unknown"
@@ -162,7 +168,7 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
                timeline_log_path: str | None = None, max_batch_size: int = 8,
                max_num_batched_tokens: int | None = None, max_waiting: int = 64,
                kv_cache_gb: float | None = None, attention_backend: str = "torch_ref",
-               gpu_memory_utilization: float = 0.9) -> FastAPI:
+               gpu_memory_utilization: float = 0.9, enable_prefix_caching: bool = True) -> FastAPI:
     from pathlib import Path
 
     from ..model.config import LlamaConfig
@@ -183,7 +189,7 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size, max_num_batched_tokens,
-                              kv_cache_gb, attention_backend, gpu_memory_utilization)
+                              kv_cache_gb, attention_backend, gpu_memory_utilization, enable_prefix_caching)
         state["engine"] = engine
         await engine.start()
         yield
@@ -218,7 +224,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
     async def models():
         return {"object": "list", "data": [{"id": model_name, "object": "model", "owned_by": "minillm",
                                             "max_model_len": max_len, "max_batch_size": max_batch_size,
-                                            "max_waiting": max_waiting}]}
+                                            "max_waiting": max_waiting,
+                                            "prefix_caching": enable_prefix_caching}]}
 
     @app.get("/metrics")
     async def prometheus():
@@ -228,6 +235,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
         metrics.kv_tokens.set(s.kv_tokens_used)
         metrics.kv_usage.set(s.kv_blocks_used / s.kv_blocks_total if s.kv_blocks_total else 0.0)
         metrics.preemptions.set(s.num_preemptions)
+        metrics.prefix_queries.set(s.prefix_cache_queries)
+        metrics.prefix_hits.set(s.prefix_cache_hits)
         return Response(generate_latest(metrics.registry), media_type=CONTENT_TYPE_LATEST)
 
     def validate(body: _Common, prompt_ids: list[int], max_tokens: int) -> None:
@@ -300,7 +309,7 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
         req_id = ("chatcmpl-" if chat else "cmpl-") + uuid.uuid4().hex
         timeline = {"received": received, "tokenized": now_ns()}
         req = AddRequest(req_id, prompt_ids, max_tokens, stop_token_ids=eos_ids, ignore_eos=body.ignore_eos,
-                         timeline=timeline)
+                         timeline=timeline, cache_salt=body.cache_salt or "")
         created = int(time.time())
         detok = IncrementalDetokenizer(tokenizer)
 
@@ -318,7 +327,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
 
         def usage(out: RequestOutput) -> dict[str, int]:
             return {"prompt_tokens": out.num_prompt_tokens, "completion_tokens": out.num_output_tokens,
-                    "total_tokens": out.num_prompt_tokens + out.num_output_tokens}
+                    "total_tokens": out.num_prompt_tokens + out.num_output_tokens,
+                    "prompt_tokens_details": {"cached_tokens": out.num_cached_tokens}}
 
         if not body.stream:
             text, token_ids = "", []

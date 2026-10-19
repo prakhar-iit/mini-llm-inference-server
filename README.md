@@ -26,7 +26,7 @@ Full roadmap, in build order: [`docs/distributed_inference_plan.md`](docs/distri
 src/minillm/
   device.py        # device + dtype selection (mps / cuda / cpu)
   model/           # model code: Llama first (M0), DeepSeek-V3 / Kimi K2 later (Phase 5)
-  cache/           # every KV cache: contiguous (M1/M3), slots (M4), paged pool (M5); prefix cache at M6
+  cache/           # every KV cache: contiguous (M1/M3), slots (M4), paged pool (M5), prefix cache (M6)
   attention/       # attention backends: torch reference (all devices) + FlashInfer (CUDA); paged metadata
   engine/          # scheduler, block manager, engine core (M3–M6)
   server/          # OpenAI-compatible API + streaming (M2)

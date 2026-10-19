@@ -12,7 +12,7 @@ decision is made (the plan's "Implementation order" shows where each one is need
 | 5 | Benchmark client | M2 | Own asyncio client for A, B and C; cross-checked against `vllm bench serve` in the GPU session (within ~5%) ([note](05-benchmark-client.md)) | 2026-10-11 |
 | 6 | Observability | M2 | Per-request timeline (returned to client + JSONL), engine step log behind a flag, Prometheus `/metrics`; OpenTelemetry at D2 ([note](06-observability.md)) | 2026-10-11 |
 | 7 | Attention backend and KV layout | M5 | Three stages on one layout: M5a torch_ref (Mac, oracle), M5b FlashInfer, M5c vLLM's flash-attn; block size 16, per-layer K/V `[blocks, 16, Hkv, Dh]`, ragged per-step metadata; all three coded before M6, GPU-tested in one session ([note](07-attention-backend-kv-layout.md)) | 2026-10-18 |
-| 8 | Block-hash spec | M6 | | |
+| 8 | Block-hash spec | M6 | SHA-256 chain over full 16-token blocks (uint32 LE token ids), root salted with model@revision, KV dtype, layout, block size and an optional per-request `cache_salt`; last token always recomputed ([note](08-block-hash-spec.md)) | 2026-10-18 |
 | 9 | Scheduler policy | M4 | Iteration-level, FCFS without skipping, slots reserving max_model_len, prefill-first with a token budget, 503 past max_waiting; preempt newest first from M5 ([note](09-scheduler-policy.md)) | 2026-10-18 |
 | 10 | Systems language (Go / Rust) | D2 | | |
 | 11 | Router state and tokenization | D2 | | |

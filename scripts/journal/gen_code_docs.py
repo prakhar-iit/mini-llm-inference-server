@@ -279,7 +279,29 @@ add("M5b", "tests/test_kernels.py", "test", "python", working("tests/test_kernel
     "Kernels vs the reference on one GPU: a mixed ragged step, a decode-only step, and teacher-forced G1b on the 1B.",
     ["Why compare against the reference in bf16 with a tolerance instead of exact tokens?"])
 
-order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300, "M4": 400, "M5a": 500, "M5b": 600, "M5c": 700}
+# ---------------- M6 (in progress) ----------------
+add("M6", "src/minillm/cache/prefix.py", "new", "python", working("src/minillm/cache/prefix.py"),
+    "Decision 8's hash chain (salted SHA-256 over full blocks) and the hash -> block index.",
+    ["Why must block 3's hash depend on blocks 0-2, not just its own 16 tokens?",
+     "Two requests compute the same prefix in one step: which block becomes the cached copy, and what happens to the other?",
+     "Write the bytes hashed for block 0 of a request with salt 'a', in order."])
+add("M6", "src/minillm/engine/block_manager.py", "changed", "diff", diff("m4", "src/minillm/engine/block_manager.py"),
+    "Free / held (refcounted) / cached (LRU) states; tables freed tail first; R3 extended to refcounts.",
+    ["Why free a block table tail first? What breaks if block 0 is evicted before block 3?",
+     "Why do cached blocks count as free capacity, and when is one actually evicted?"])
+add("M6", "src/minillm/engine/scheduler.py", "changed", "diff", diff("m4", "src/minillm/engine/scheduler.py"),
+    "Lookup at admission (hits shared, only the tail prefilled and budgeted); blocks named as they fill.",
+    ["Why are hits counted only over the first num_tokens - 1 tokens?",
+     "A cached block nobody holds is a hit: why does reviving it count against free capacity?",
+     "Why are blocks named before finished requests free them?"])
+add("M6", "benchmarks/s6_shared_prefixes.py", "tool", "python", working("benchmarks/s6_shared_prefixes.py"),
+    "S6: TTFT vs shared-prefix fraction, caching on vs off; workload C turns with growing histories.",
+    ["Why run part A one request at a time?", "What hit rate do you expect on workload C, and from which two sources?"])
+add("M6", "tests/test_prefix_cache.py", "test", "python", working("tests/test_prefix_cache.py"),
+    "Hash spec byte for byte, refcounts and LRU, sharing, salts, eviction, and a preempted request resuming from cache.",
+    ["Which test failed when tables were freed head first, and why?"])
+
+order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300, "M4": 400, "M5a": 500, "M5b": 600, "M5c": 700, "M6": 800}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i
     m["lines"] = m["code"].count("\n") + 1

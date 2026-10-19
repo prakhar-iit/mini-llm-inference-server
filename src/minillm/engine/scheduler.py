@@ -10,6 +10,9 @@ Every engine step asks `schedule()` what to run:
 - otherwise -> a decode step for every running request. A request whose next token starts a new block gets one;
   when none is free, the newest running request is preempted: its blocks are freed and it goes back to the front
   of the queue, to be recomputed (prompt + output so far) when it is admitted again.
+M6, prefix caching (decision 8): at admission a request looks up the hashes of its leading full blocks; the
+cached ones are shared (a reference each) instead of recomputed, so only the rest of the prompt is prefilled and
+counted against the token budget. After every step, blocks that just filled are named in the prefix cache.
 The scheduler only does bookkeeping: block ids, no tensors, no model.
 """
 
@@ -19,6 +22,7 @@ from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from ..cache.prefix import PrefixCache, extend_chain
 from .block_manager import BlockManager
 
 
@@ -33,6 +37,10 @@ class Request:
     block_ids: list[int] = field(default_factory=list)  # its block table, while it holds KV
     num_cached: int = 0  # tokens whose k/v are in the pool
     num_preemptions: int = 0
+    root: bytes = b""  # M6: the hash chain's salted root (decision 8)
+    block_hashes: list[bytes] = field(default_factory=list)  # hashes of its first full blocks, computed so far
+    num_named: int = 0  # leading blocks of its table already named in the prefix cache
+    num_cached_tokens: int | None = None  # prompt tokens served from the prefix cache at its first admission
 
     @property
     def num_tokens(self) -> int:
@@ -53,10 +61,12 @@ class SchedulerOutput:
 
 
 class Scheduler:
-    def __init__(self, max_num_seqs: int, max_num_batched_tokens: int, blocks: BlockManager) -> None:
+    def __init__(self, max_num_seqs: int, max_num_batched_tokens: int, blocks: BlockManager,
+                 prefix: PrefixCache | None = None) -> None:
         self.max_num_seqs = max_num_seqs
         self.max_num_batched_tokens = max_num_batched_tokens
         self.blocks = blocks
+        self.prefix = prefix
         self.waiting: deque[Request] = deque()
         self.running: list[Request] = []  # admission order: the newest is last
         self.num_preemptions = 0
@@ -82,20 +92,57 @@ class Scheduler:
             if len(self.running) == self.max_num_seqs:
                 break
             n = req.num_tokens
-            if admitted and tokens + n > self.max_num_batched_tokens:
+            hits = self._lookup(req)
+            new_tokens = n - len(hits) * bs  # what the prefill actually computes
+            if admitted and tokens + new_tokens > self.max_num_batched_tokens:
                 break
-            need = self.blocks.blocks_for(n)
-            spare = 1 if n == need * bs else 0  # after its prefill, its next token starts a new block
-            if need + spare + reserve > self.blocks.num_free:
+            total = self.blocks.blocks_for(n)
+            need = total - len(hits)
+            revive = sum(1 for b in hits if self.blocks.is_cached_unheld(b))  # cached blocks nobody holds count as free
+            spare = 1 if n == total * bs else 0  # after its prefill, its next token starts a new block
+            if need + revive + spare + reserve > self.blocks.num_free:
                 break  # FCFS without skipping: nothing behind the head-of-line request jumps it
-            req.block_ids = self.blocks.allocate(need)
+            self.blocks.acquire(hits)  # before allocating, so these can't be evicted to make room
+            req.block_ids = hits + self.blocks.allocate(need)
+            req.num_cached, req.num_named = len(hits) * bs, len(hits)
+            if self.prefix is not None:
+                self.prefix.queries += n
+                self.prefix.hits += len(hits) * bs
+            if req.num_cached_tokens is None:
+                req.num_cached_tokens = len(hits) * bs
             reserve += spare
-            tokens += n
+            tokens += new_tokens
             admitted.append(req)
             self.running.append(req)
         for req in admitted:
             self.waiting.remove(req)
         return admitted
+
+    def _lookup(self, req: Request) -> list[int]:
+        """Cached blocks for the request's longest cached prefix. Only blocks entirely within its first
+        num_tokens - 1 tokens count: the last token is always computed, so the step has logits to sample from."""
+        if self.prefix is None:
+            return []
+        bs = self.blocks.block_size
+        k = (req.num_tokens - 1) // bs
+        if k == 0:
+            return []
+        extend_chain(req.block_hashes, req.root, req.prompt + req.output, k, bs)
+        return self.prefix.lookup(req.block_hashes[:k])
+
+    def name_full_blocks(self, reqs: list[Request]) -> None:
+        """After a step: name every block that just filled, so later requests can share it."""
+        if self.prefix is None:
+            return
+        bs = self.blocks.block_size
+        for req in reqs:
+            full = req.num_cached // bs
+            if full <= req.num_named:
+                continue
+            extend_chain(req.block_hashes, req.root, req.prompt + req.output, full, bs)
+            for j in range(req.num_named, full):
+                self.prefix.insert(req.block_hashes[j], req.block_ids[j])
+            req.num_named = full
 
     def _grow_running(self) -> list[Request]:
         """Give every running request room for its next token, preempting the newest when the pool is empty."""
@@ -117,8 +164,8 @@ class Scheduler:
 
     def _preempt(self, req: Request) -> None:
         self.running.remove(req)
-        self.blocks.free(req.block_ids)
-        req.num_cached = 0
+        self.blocks.free(req.block_ids)  # named blocks stay cached: a resume may find its own prefix again
+        req.num_cached = req.num_named = 0
         req.num_preemptions += 1
         self.num_preemptions += 1
         self.waiting.appendleft(req)  # it arrived before everything still waiting

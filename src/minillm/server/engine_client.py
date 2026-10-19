@@ -28,7 +28,8 @@ class EngineClient:
     def __init__(self, model_dir: str, device: str = "auto", max_model_len: int | None = None,
                  step_log_path: str | None = None, max_batch_size: int = 1,
                  max_num_batched_tokens: int | None = None, kv_cache_gb: float | None = None,
-                 attention_backend: str = "torch_ref", gpu_memory_utilization: float = 0.9) -> None:
+                 attention_backend: str = "torch_ref", gpu_memory_utilization: float = 0.9,
+                 enable_prefix_caching: bool = True) -> None:
         self._ipc_dir = tempfile.mkdtemp(prefix="minillm-")
         in_addr, out_addr = f"ipc://{self._ipc_dir}/in", f"ipc://{self._ipc_dir}/out"
         self._ctx = zmq.asyncio.Context()
@@ -40,7 +41,8 @@ class EngineClient:
         self._proc = mp.get_context("spawn").Process(
             target=run_engine_process,
             args=(model_dir, device, in_addr, out_addr, max_model_len, step_log_path, max_batch_size,
-                  max_num_batched_tokens, kv_cache_gb, attention_backend, gpu_memory_utilization),
+                  max_num_batched_tokens, kv_cache_gb, attention_backend, gpu_memory_utilization,
+                  enable_prefix_caching),
             daemon=True, name="minillm-engine")
         self._proc.start()
         self._queues: dict[str, asyncio.Queue[RequestOutput]] = {}
