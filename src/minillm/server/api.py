@@ -10,6 +10,9 @@ workload C client to append exact tokens). Every final response or final stream 
 `minillm_timeline` (decision 6): monotonic-ns timestamps for each stage of the request.
 
 Only greedy decoding exists so far: `temperature` must be 0 or omitted, `n` must be 1.
+
+Overload (R2, decision 9): at most max_batch_size + max_waiting requests are in flight. Past that, new
+requests get HTTP 503 with Retry-After instead of queueing without bound.
 """
 
 from __future__ import annotations
@@ -65,6 +68,25 @@ class ChatCompletionRequest(_Common):
 
 class BadRequest(Exception):
     pass
+
+
+class Overloaded(Exception):
+    pass
+
+
+class _ReleasingStream(StreamingResponse):
+    """Runs `on_close` once the response is over, however it ends. Starlette iterates the body only inside
+    `__call__`, so a client that disconnects before the first byte would otherwise skip every cleanup."""
+
+    def __init__(self, content, on_close, **kwargs) -> None:
+        super().__init__(content, **kwargs)
+        self._on_close = on_close
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self._on_close()
 
 
 # ---------- metrics (decision 6; names follow vLLM's) ----------
@@ -135,7 +157,8 @@ class IncrementalDetokenizer:
 
 def create_app(model_dir: str, device: str = "auto", max_model_len: int | None = None,
                served_model_name: str | None = None, step_log_path: str | None = None,
-               timeline_log_path: str | None = None, max_batch_size: int = 8) -> FastAPI:
+               timeline_log_path: str | None = None, max_batch_size: int = 8,
+               max_num_batched_tokens: int | None = None, max_waiting: int = 64) -> FastAPI:
     from pathlib import Path
 
     from ..model.config import LlamaConfig
@@ -151,11 +174,11 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
         tokenizer = None  # token-id prompts only (tests use tiny tokenizer-less models)
     eos_ids = list(config.eos_token_ids)
     metrics = Metrics()
-    state: dict[str, Any] = {}
+    state: dict[str, Any] = {"in_flight": 0}  # admitted and not finished (R2): counted here, exact, no round trip
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size)
+        engine = EngineClient(model_dir, device, max_len, step_log_path, max_batch_size, max_num_batched_tokens)
         state["engine"] = engine
         await engine.start()
         yield
@@ -167,6 +190,12 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
     async def _bad_request(_: Request, exc: BadRequest):
         metrics.errors.labels(reason="bad_request").inc()
         return JSONResponse(status_code=400, content={"error": {"message": str(exc), "type": "invalid_request_error"}})
+
+    @app.exception_handler(Overloaded)
+    async def _overloaded(_: Request, exc: Overloaded):
+        metrics.errors.labels(reason="overloaded").inc()
+        return JSONResponse(status_code=503, headers={"Retry-After": "1"},
+                            content={"error": {"message": str(exc), "type": "server_overloaded"}})
 
     @app.exception_handler(EngineDeadError)
     async def _engine_dead(_: Request, exc: EngineDeadError):
@@ -183,7 +212,8 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
     @app.get("/v1/models")
     async def models():
         return {"object": "list", "data": [{"id": model_name, "object": "model", "owned_by": "minillm",
-                                            "max_model_len": max_len, "max_batch_size": max_batch_size}]}
+                                            "max_model_len": max_len, "max_batch_size": max_batch_size,
+                                            "max_waiting": max_waiting}]}
 
     @app.get("/metrics")
     async def prometheus():
@@ -237,6 +267,28 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
         return await run(body, prompt_ids, max_tokens, received, chat=True)
 
     async def run(body: _Common, prompt_ids: list[int], max_tokens: int, received: int, chat: bool):
+        if state["in_flight"] >= max_batch_size + max_waiting:
+            raise Overloaded(f"server overloaded: {state['in_flight']} requests in flight; retry later")
+        state["in_flight"] += 1
+        released = False
+
+        def release() -> None:
+            nonlocal released
+            if not released:
+                released = True
+                state["in_flight"] -= 1
+
+        try:
+            response = await serve(body, prompt_ids, max_tokens, received, chat, release)
+        except BaseException:
+            release()
+            raise
+        if not isinstance(response, StreamingResponse):
+            release()
+        return response
+
+    async def serve(body: _Common, prompt_ids: list[int], max_tokens: int, received: int, chat: bool,
+                    release) -> Any:
         engine: EngineClient = state["engine"]
         req_id = ("chatcmpl-" if chat else "cmpl-") + uuid.uuid4().hex
         timeline = {"received": received, "tokenized": now_ns()}
@@ -307,6 +359,6 @@ def create_app(model_dir: str, device: str = "auto", max_model_len: int | None =
                     yield f"data: {json.dumps({'id': req_id, 'object': obj, 'created': created, 'model': model_name, 'choices': [], 'usage': usage(out)})}\n\n"
             yield "data: [DONE]\n\n"
 
-        return StreamingResponse(sse(), media_type="text/event-stream")
+        return _ReleasingStream(sse(), release, media_type="text/event-stream")
 
     return app

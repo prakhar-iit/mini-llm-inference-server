@@ -10,8 +10,7 @@ comparisons are fair.
 | **A — Summarize** | ~8,000 tokens in → ~150 out | arXiv papers (`ccdv/arxiv-summarization`) | Prefill (compute-bound) |
 | **B — Generate** | ~100 tokens in → ~1,000 out | UltraChat-200k first-turn prompts of 40–250 tokens (ShareGPT's only public copy is one 670 MB JSON; same shape, streams) | Decode (memory-bound) |
 | **C — Agent** | Shared system prompt + tool schemas (~3–4K tokens), multi-turn sessions, tool-call pauses | Synthetic generator (`workloads.py`, decision 2) | Prefix reuse, session state, bursty arrivals |
-
-| **Mix — A+B** | A and B interleaved (e.g. 30/70 by request) | Both | Scheduler fairness, head-of-line blocking |
+| **Mix — A+B** | A and B interleaved (e.g. 30/70 by request) | Both (`workloads.mix`) | Scheduler fairness, head-of-line blocking |
 
 One in-house client drives all three workloads against any OpenAI-compatible server (ours or vLLM's).
 It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
@@ -22,7 +21,7 @@ It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
 |---|---|
 | `workloads.py` | Builds requests as token ids: `random`, A (arXiv), B (UltraChat), C (agent sessions; JSONL save/load) |
 | `client.py` | Open-loop client for any OpenAI-compatible server: gamma arrivals, per-token timestamps, sessions, SLO summary |
-| `s0_no_cache.py`, `s1_prefill_decode.py`, `s2_overhead_queueing.py` | Study scripts |
+| `s0_no_cache.py` … `s4_mixed_traffic.py` | Study scripts (S0–S4); each docstring has the full and the Mac smoke command |
 | `g2_quality.py` | G2 quality gate (perplexity + GSM8K) with baseline save/check |
 
 ```bash

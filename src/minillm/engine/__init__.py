@@ -1,7 +1,7 @@
 """Engine core: everything between the API and the model.
 
 - M3: static batching.
-- M4: continuous (iteration-level) batching scheduler.
+- M4: continuous (iteration-level) batching scheduler (`scheduler.py`), admission control in the frontend.
 - M5: block manager, paged KV cache, eviction by recompute.
 - M6: prefix cache (chained block hashes, refcount, LRU).
 - M7: chunked prefill (token budget per step).

@@ -8,6 +8,7 @@ on the frontend.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
 
@@ -29,10 +30,16 @@ def run_engine_process(
     max_model_len: int | None,
     step_log_path: str | None,
     max_batch_size: int = 1,
+    max_num_batched_tokens: int | None = None,
 ) -> None:
     info = select_device(device)
     model = load_model(model_dir, info.device, info.dtype)
-    core = EngineCore(model, max_model_len, step_log=step_log_path is not None, max_batch_size=max_batch_size)
+    core = EngineCore(model, max_model_len, step_log=step_log_path is not None, max_batch_size=max_batch_size,
+                      max_num_batched_tokens=max_num_batched_tokens)
+    # Every slot reserves max_model_len tokens up front (decision 9); say how much, since it can rival the weights.
+    kv_bytes = sum(t.numel() * t.element_size() for t in core.cache.k + core.cache.v)
+    print(f"minillm engine: KV cache reserved {kv_bytes / 2**30:.2f} GiB = {max_batch_size} slots × "
+          f"{core.max_model_len} tokens", file=sys.stderr, flush=True)
 
     ctx = zmq.Context()
     inbox = ctx.socket(zmq.PULL)

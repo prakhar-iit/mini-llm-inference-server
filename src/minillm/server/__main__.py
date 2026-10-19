@@ -23,11 +23,16 @@ def main() -> None:
     parser.add_argument("--step-log", default=None, help="write the engine step log (JSONL) here")
     parser.add_argument("--timeline-log", default=None, help="write per-request timelines (JSONL) here")
     parser.add_argument("--max-batch-size", type=int, default=8,
-                        help="static batching (M3): requests prefilled and decoded together; 1 = M2 behaviour")
+                        help="requests running at once, each reserving max-model-len tokens of KV; 1 = M2 behaviour")
+    parser.add_argument("--max-num-batched-tokens", type=int, default=None,
+                        help="token budget of one prefill step, padding included (default 8192; decision 9)")
+    parser.add_argument("--max-waiting", type=int, default=64,
+                        help="requests queued beyond the running ones before new ones get HTTP 503 (R2)")
     args = parser.parse_args()
 
     app = create_app(args.model_dir, args.device, args.max_model_len, args.served_model_name,
-                     args.step_log, args.timeline_log, args.max_batch_size)
+                     args.step_log, args.timeline_log, args.max_batch_size, args.max_num_batched_tokens,
+                     args.max_waiting)
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
 

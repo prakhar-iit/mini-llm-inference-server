@@ -13,7 +13,7 @@ decision is made (the plan's "Implementation order" shows where each one is need
 | 6 | Observability | M2 | Per-request timeline (returned to client + JSONL), engine step log behind a flag, Prometheus `/metrics`; OpenTelemetry at D2 ([note](06-observability.md)) | 2026-10-11 |
 | 7 | Attention backend and KV layout | M5 | | |
 | 8 | Block-hash spec | M6 | | |
-| 9 | Scheduler policy | M4 | | |
+| 9 | Scheduler policy | M4 | Iteration-level, FCFS without skipping, slots reserving max_model_len, prefill-first with a token budget, 503 past max_waiting; preempt newest first from M5 ([note](09-scheduler-policy.md)) | 2026-10-18 |
 | 10 | Systems language (Go / Rust) | D2 | | |
 | 11 | Router state and tokenization | D2 | | |
 | 12 | Session / agent API contract | D4 | | |

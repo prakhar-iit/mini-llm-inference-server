@@ -202,7 +202,8 @@ def test_llama_32_1b_text_through_api():
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(model_dir)
-    proc, base = start_server(model_dir, "auto")
+    # Short prompts: 2,048 tokens per slot keeps the up-front KV reservation (decision 9) small on an 8 GB Mac.
+    proc, base = start_server(model_dir, "auto", ["--max-model-len", "2048"])
     try:
         got = []
         for p in G0_PROMPTS:
@@ -224,15 +225,14 @@ def test_llama_32_1b_text_through_api():
         assert text == tok.decode(expected, skip_special_tokens=True)
 
 
-def test_static_batching_through_the_server(tiny_dir, reference):
-    """M3 end to end: concurrent requests are prefilled together, and each still gets its batch-1 tokens."""
+def test_continuous_batching_through_the_server(tiny_dir):
+    """M4 end to end: requests that arrive while a long one runs join it at once, and keep their batch-1 tokens."""
     proc, base = start_server(tiny_dir, "cpu", ["--max-batch-size", "4"])
     try:
         prompts = [[i, 2 * i + 1, 3, 4, 5, 6][: 2 + i] for i in range(1, 5)]  # ragged lengths 3..6
 
         async def go():
             async with httpx.AsyncClient(timeout=60) as c:
-                # A first request occupies the engine so the next four queue up and form one batch.
                 first = asyncio.create_task(c.post(base + "/v1/completions",
                                                    json={"prompt": [9, 9], "max_tokens": 1500, "ignore_eos": True}))
                 await asyncio.sleep(0.3)
@@ -240,15 +240,58 @@ def test_static_batching_through_the_server(tiny_dir, reference):
                     c.post(base + "/v1/completions",
                            json={"prompt": p, "max_tokens": 20, "ignore_eos": True, "return_token_ids": True})
                     for p in prompts])
-                await first
-                return rest
+                return (await first).json(), rest
 
-        results = [r.json() for r in asyncio.run(go())]
+        first, results = asyncio.run(go())
+        results = [r.json() for r in results]
         model = load_model(tiny_dir, device="cpu", dtype=torch.float32)
         for p, r in zip(prompts, results):
             assert r["choices"][0]["token_ids"] == greedy_generate(model, torch.tensor([p]), 20)
-        assert len({r["minillm_timeline"]["scheduled"] for r in results}) == 1  # one batch, one prefill
+        # Nobody waited for the long request: all four started and finished while it was still running.
+        assert all(r["minillm_timeline"]["finished"] < first["minillm_timeline"]["finished"] for r in results)
         assert httpx.get(base + "/v1/models").json()["data"][0]["max_batch_size"] == 4
+    finally:
+        proc.terminate()
+        proc.wait(timeout=20)
+
+
+def test_r2_overload_is_rejected_with_503(tiny_dir):
+    """R2: past max_batch_size + max_waiting requests in flight, new ones get 503 instead of queueing without
+    bound; admitted requests still complete correctly, and the server recovers."""
+    proc, base = start_server(tiny_dir, "cpu", ["--max-batch-size", "2", "--max-waiting", "1"])
+    try:
+        model = load_model(tiny_dir, device="cpu", dtype=torch.float32)
+        prompts = [[i, i + 1, 7] for i in range(1, 9)]
+
+        async def burst():
+            async with httpx.AsyncClient(timeout=120) as c:
+                return await asyncio.gather(*[
+                    c.post(base + "/v1/completions",
+                           json={"prompt": p, "max_tokens": 1000, "ignore_eos": True, "return_token_ids": True})
+                    for p in prompts])
+
+        results = asyncio.run(burst())
+        ok = [(p, r) for p, r in zip(prompts, results) if r.status_code == 200]
+        rejected = [r for r in results if r.status_code == 503]
+        assert len(ok) == 3 and len(rejected) == 5  # 2 running + 1 waiting
+        assert all(r.headers["retry-after"] == "1" and r.json()["error"]["type"] == "server_overloaded"
+                   for r in rejected)
+        for p, r in ok:
+            assert r.json()["choices"][0]["token_ids"] == greedy_generate(model, torch.tensor([p]), 1000)
+        assert metric(base, 'minillm:request_errors_total{reason="overloaded"}') == 5
+
+        # Streams dropped before their first byte must not leak capacity.
+        async def drop_streams():
+            async with httpx.AsyncClient(timeout=30) as c:
+                for _ in range(5):
+                    async with c.stream("POST", base + "/v1/completions",
+                                        json={"prompt": [5, 6], "max_tokens": 500, "stream": True}):
+                        pass
+
+        asyncio.run(drop_streams())
+        results = asyncio.run(burst())
+        assert sum(r.status_code == 200 for r in results) == 3
+        assert httpx.get(base + "/health").json() == {"status": "ok"}
     finally:
         proc.terminate()
         proc.wait(timeout=20)

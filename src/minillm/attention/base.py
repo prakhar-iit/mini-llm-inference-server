@@ -21,9 +21,9 @@ class AttentionBackend(ABC):
         Tk - Tq + i and sees keys 0 .. Tk - Tq + i. Tq == Tk is a fresh prompt, Tq == 1 a decode step,
         anything between a prompt continued on top of cached tokens.
 
-        key_valid [B, Tk] (bool, optional): False marks padding (M3 left-pads batched prompts). No query
-        attends to a padding key, except that every query may always see its own position: a padding
-        query would otherwise have no key at all and softmax would return NaN (its output is ignored).
+        key_valid [B, Tk] (bool, optional): False marks keys that aren't real (M3's left-padding, or past a
+        shorter row's end in an M4 slot batch). No query attends to one, except that a query with no real key
+        at all may see its own position: softmax over zero keys would return NaN (its output is ignored).
         Returns [B, H, Tq, Dh]. Scale is 1/sqrt(Dh).
         """
 

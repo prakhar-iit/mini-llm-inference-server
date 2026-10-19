@@ -4,6 +4,7 @@
 - A (summarize): an arXiv paper truncated to ~8K tokens -> 150 tokens out. Prefill-heavy.
 - B (generate): a real user prompt of ~40-250 tokens (UltraChat-200k) -> 1,000 tokens out. Decode-heavy.
 - C (agent): multi-turn sessions with shared per-agent-type prefixes, growing history and tool pauses.
+- Mix (A+B): A and B requests interleaved at random, e.g. 30/70 by request. Scheduler fairness (S4, S7).
 
 Outputs are fixed with max_tokens + ignore_eos so every engine and milestone does the same work.
 """
@@ -106,6 +107,12 @@ def workload_b(tokenizer, n: int, output_tokens: int = 1000, min_prompt: int = 4
             if len(out) == n:
                 return out
     raise ValueError(f"only {len(out)} prompts in range")
+
+
+def mix(a: list[RequestSpec], b: list[RequestSpec], n: int, frac_a: float,
+        rng: random.Random) -> list[tuple[str, RequestSpec]]:
+    """n requests labelled "a" or "b", each A with probability frac_a, drawn with replacement from the pools."""
+    return [("a", rng.choice(a)) if rng.random() < frac_a else ("b", rng.choice(b)) for _ in range(n)]
 
 
 # ---------- workload C (decision 2) ----------

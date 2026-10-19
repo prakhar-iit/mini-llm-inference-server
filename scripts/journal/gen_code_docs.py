@@ -156,41 +156,78 @@ add("M2", "tests/test_client.py", "test", "python", at_ref("m2", "tests/test_cli
     "Arrival statistics, summary math, workload C rules, and client runs against a real tiny server.",
     ["What does `test_open_loop_requests_against_server` prove by comparing client and server timestamps?"])
 
-# ---------------- M3 (in progress: working tree vs m2) ----------------
-add("M3", "src/minillm/attention/torch_ref.py", "changed", "diff", diff("m2", "src/minillm/attention/torch_ref.py"),
+# ---------------- M3 (tag m3) ----------------
+add("M3", "src/minillm/attention/torch_ref.py", "changed", "diff", git("diff", "-U4", "m2", "m3", "--", "src/minillm/attention/torch_ref.py"),
     "Padding-aware attention: causal AND real key, or the query's own position.",
     ["Draw the mask for rows with 2 and 4 real tokens padded to 4. Which entries does `own` add, and why?",
      "What would SDPA return for a padding query with no visible key?"])
-add("M3", "src/minillm/model/kv_cache.py", "changed", "diff", diff("m2", "src/minillm/model/kv_cache.py"),
+add("M3", "src/minillm/model/kv_cache.py", "changed", "diff", git("diff", "-U4", "m2", "m3", "--", "src/minillm/model/kv_cache.py"),
     "The cache records which slots are real (`valid`) and how many real tokens each row has (`num_valid`).",
     ["Why track `has_padding` in Python instead of checking the tensor?",
      "After a padded prefill, why do decode steps still need the padding mask?"])
-add("M3", "src/minillm/model/llama.py", "changed", "diff", diff("m2", "src/minillm/model/llama.py"),
+add("M3", "src/minillm/model/llama.py", "changed", "diff", git("diff", "-U4", "m2", "m3", "--", "src/minillm/model/llama.py"),
     "Per-row positions counting real tokens only; one padding mask built per forward and shared by all layers.",
     ["RoPE is shift-invariant, so shifted positions don't change the output. Why compute exact positions anyway?",
      "Trace positions for prompts of length 3 and 1, then two decode steps."])
-add("M3", "src/minillm/generate.py", "changed", "diff", diff("m2", "src/minillm/generate.py"),
+add("M3", "src/minillm/generate.py", "changed", "diff", git("diff", "-U4", "m2", "m3", "--", "src/minillm/generate.py"),
     "`pad_left` and `greedy_generate_batch`: a static batch outside the engine, used by G1a and S3.",
     ["Why pad on the left rather than the right?"])
-add("M3", "src/minillm/engine/core.py", "changed", "diff", diff("m2", "src/minillm/engine/core.py"),
+add("M3", "src/minillm/engine/core.py", "changed", "diff", git("diff", "-U4", "m2", "m3", "--", "src/minillm/engine/core.py"),
     "Static batching: admit up to max_batch_size, prefill together, decode in lockstep until the last finishes.",
     ["What happens to a row that finishes early? What does it cost in compute and memory?",
      "Why does a request arriving mid-batch wait for the whole batch even if a row is idle?",
      "How does the step log separate useful work from waste?"])
-add("M3", "src/minillm/correctness.py", "new", "python", working("src/minillm/correctness.py"),
+add("M3", "src/minillm/correctness.py", "new", "python", at_ref("m3", "src/minillm/correctness.py"),
     "G1b: teacher-forced bf16 drift, batch N vs batch 1, against 2× HF's own drift.",
     ["Why teacher-force instead of comparing generated tokens?",
      "Why is the tolerance measured from HF rather than fixed? What are the floors for?",
      "Why are near-ties (margin < 0.5) allowed to flip?"])
-add("M3", "benchmarks/s3_batch_sweep.py", "tool", "python", working("benchmarks/s3_batch_sweep.py"),
+add("M3", "benchmarks/s3_batch_sweep.py", "tool", "python", at_ref("m3", "benchmarks/s3_batch_sweep.py"),
     "S3: decode step time and throughput vs batch size; static-batching waste on mixed lengths.",
     ["Derive arithmetic intensity ≈ B FLOP/byte for a bf16 decode step at batch B.",
      "What does `longest_share` measure?"])
-add("M3", "tests/test_batching.py", "test", "python", working("tests/test_batching.py"),
+add("M3", "tests/test_batching.py", "test", "python", at_ref("m3", "tests/test_batching.py"),
     "G1a (fp32 exact under padding), positions, NaN safety, G1b math and the real-model G1b.",
     ["Which injected bug did the output tests miss, and which test catches it?"])
 
-order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300}
+# ---------------- M4 (in progress: working tree vs m3) ----------------
+add("M4", "src/minillm/engine/scheduler.py", "new", "python", working("src/minillm/engine/scheduler.py"),
+    "Iteration-level scheduler (decision 9): FCFS admission without skipping, slots, a padded token budget, compaction.",
+    ["Walk `schedule()` for queued prompts of 10, 10, 30 tokens with 3 slots and a budget of 40. What runs each step?",
+     "Why stop at the first request that doesn't fit instead of skipping to a smaller one behind it?",
+     "Why is the head request admitted even when it alone exceeds the budget, and which milestone removes that exception?",
+     "`release`: which requests move, and why does that keep every decode step a view rather than a gather?"])
+add("M4", "src/minillm/model/kv_cache.py", "changed", "diff", diff("m3", "src/minillm/model/kv_cache.py"),
+    "`SlotKVCache`: one slot per running request, max_model_len reserved each; `SlotBatch` is one forward pass's view.",
+    ["How much KV does the server reserve at startup for Llama-3.1-8B with 8 slots of 8,192 tokens in bf16?",
+     "Why is prefill right-padded here when M3 left-padded? What would break with left padding?",
+     "Decode rows have different lengths: how is each row's new k/v written, and which keys does the attention see?",
+     "Why are slot lengths kept in Python rather than in a tensor?"])
+add("M4", "src/minillm/attention/torch_ref.py", "changed", "diff", diff("m3", "src/minillm/attention/torch_ref.py"),
+    "A query may see its own slot only when it sees no real key at all.",
+    ["With M3's rule (always allow the own position), which slot does a short decode row read in an M4 batch?",
+     "Why is the new rule identical to M3's on left-padded batches?"])
+add("M4", "src/minillm/model/llama.py", "changed", "diff", diff("m3", "src/minillm/model/llama.py"),
+    "Positions come from the cache; `last_index` picks each right-padded row's last real token.",
+    ["Why move the position logic into the cache classes?"])
+add("M4", "src/minillm/engine/core.py", "changed", "diff", diff("m3", "src/minillm/engine/core.py"),
+    "Continuous batching: each step is a prefill of newly admitted requests or a decode of all running ones.",
+    ["Trace three requests (outputs 2, 5, 3 tokens, 2 slots) step by step: which slots, which moves, which outputs?",
+     "Why do running requests pause during a prefill step, and what does S4 predict that costs?",
+     "Why can an M4 server never run out of KV memory mid-request? What does it pay for that?"])
+add("M4", "src/minillm/server/api.py", "changed", "diff", diff("m3", "src/minillm/server/api.py"),
+    "R2 admission control: at most max_batch_size + max_waiting in flight; the rest get 503 with Retry-After.",
+    ["Why count in-flight requests in the frontend instead of asking the engine?",
+     "What does `_ReleasingStream` protect against, and why isn't the stream generator's `finally` enough?"])
+add("M4", "benchmarks/s4_mixed_traffic.py", "tool", "python", working("benchmarks/s4_mixed_traffic.py"),
+    "S4: goodput, per-class TTFT and B's inter-token latency vs arrival rate on the Mix workload, M3 vs M4.",
+    ["Why is goodput judged per request against its own class's SLO?",
+     "Which column shows the ITL spike when an A prompt joins, and why measure it on B requests only?"])
+add("M4", "tests/test_continuous_batching.py", "test", "python", working("tests/test_continuous_batching.py"),
+    "M4 spec: slot cache vs batch 1 (all tiny variants), scheduler rules, engine churn, joins, aborts, KV stats.",
+    ["Why fill the buffers with 1e4 instead of NaN in `test_stale_slot_contents_are_never_read`?"])
+
+order = {"M0": 0, "M1": 100, "M2": 200, "M3": 300, "M4": 400}
 for i, m in enumerate(M):
     m["order"] = order[m["milestone"]] + i
     m["lines"] = m["code"].count("\n") + 1

@@ -1,4 +1,4 @@
-"""Llama forward pass (M0), with an optional KV cache (M1).
+"""Llama forward pass (M0), with an optional KV cache (M1, or M4's per-request slots).
 
 Module and parameter names mirror Hugging Face's `LlamaForCausalLM`, so `loader.py` can copy the
 safetensors weights in by name. `tests/test_g0_correctness.py` and `tests/test_kv_cache.py` are the
@@ -201,25 +201,27 @@ class LlamaForCausalLM(nn.Module):
         kv_cache: KVCache | None = None,
         last_only: bool = False,
         attention_mask: torch.Tensor | None = None,
+        last_index: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """input_ids [B, T] -> logits [B, T, V], or [B, 1, V] with `last_only`.
+        """input_ids [B, T] -> logits [B, T, V], or [B, 1, V] with `last_only` or `last_index`.
 
-        `positions` defaults to each row's next positions, counting real tokens only: padding never
-        shifts a row's RoPE positions, so a left-padded request sees exactly the positions it would see
-        alone. `attention_mask` [B, T] (1 = real, 0 = left-padding) marks padding in this call's tokens.
+        `positions` defaults to each row's next positions, which the cache knows (counting real tokens
+        only, so padding never shifts a row's RoPE positions). `attention_mask` [B, T] (1 = real,
+        0 = left-padding) marks padding in this call's tokens.
         `last_only` skips lm_head for every position but the last; generation only samples from the last,
         and for a 16K-token prompt the full [1, 16384, 128256] bf16 logits would be 4 GB.
+        `last_index` [B] is the same for right-padded rows (M4 prefill): the column of each row's last real token.
         """
         if positions is None:
-            t = input_ids.shape[1]
-            if attention_mask is not None or (kv_cache is not None and kv_cache.has_padding):
-                base = kv_cache.num_valid[:, None] if kv_cache is not None else 0
-                mask = attention_mask if attention_mask is not None else torch.ones_like(input_ids)
-                positions = (base + mask.long().cumsum(dim=1) - 1).clamp_min(0)  # pads get 0; masked anyway
+            if kv_cache is not None:
+                positions = kv_cache.positions(input_ids, attention_mask)
+            elif attention_mask is not None:
+                positions = (attention_mask.long().cumsum(dim=1) - 1).clamp_min(0)
             else:
-                start = kv_cache.seq_len if kv_cache is not None else 0
-                positions = torch.arange(start, start + t, device=input_ids.device).expand_as(input_ids)
+                positions = torch.arange(input_ids.shape[1], device=input_ids.device).expand_as(input_ids)
         hidden = self.model(input_ids, positions, kv_cache, attention_mask)
-        if last_only:
+        if last_index is not None:
+            hidden = hidden[torch.arange(hidden.shape[0], device=hidden.device), last_index.to(hidden.device)][:, None]
+        elif last_only:
             hidden = hidden[:, -1:]
         return self.lm_head(hidden)
