@@ -4,7 +4,7 @@
 tagged) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (smoke run only on the L4)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload, in-process (no server), one request at a time, so TTFT is queue-free prefill time:
   - Part A: 20 requests of 8,000 tokens (workload A's shape) whose first f × 8,000 tokens are shared (one paper,

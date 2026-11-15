@@ -9,7 +9,7 @@
 
     python benchmarks/client.py --base-url http://127.0.0.1:8000 --workload random --vocab-size 128256 \\
         --prompt-len 128 --output-len 64 --num 200 --rate 2
-    python benchmarks/client.py --base-url ... --workload c --tokenizer models/Llama-3.2-1B --num 50 --rate 0.5
+    python benchmarks/client.py --base-url ... --workload c --tokenizer models/Llama-3.1-8B --num 50 --rate 0.5
 """
 
 from __future__ import annotations

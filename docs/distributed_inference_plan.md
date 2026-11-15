@@ -18,6 +18,10 @@ smoke runs, study dry runs and official numbers all run on EC2 (g6.xlarge first,
 one H100 (p5.4xlarge, $6.88/h), Phases 2–4 on 8× H100 nodes (p5.48xlarge), Kimi K2 on p5en (8× H200). The
 L4 (g6) stays the development and first-pass tier. A100 instances are no longer planned.*
 
+*2026-11-14 change: **Llama-3.2-1B is dropped as the development model.** Development, tests and every study use
+Llama-3.1-8B. The L4 runs tests and smoke runs only; it produces no study numbers (the 8B's ~54 ms decode floor
+is above the TPOT SLO and leaves ~6 GB for KV). The 1B stays only as M10's draft model and S8's small model.*
+
 *Restructure: the roadmap is now **one ordered build sequence** (see "Implementation order"). Each open
 decision appears as a ⚑ checkpoint at the step that needs it. A **testing program** was added:
 correctness/quality gates (G0–G2) and robustness tests (R1–R4) alongside the performance studies, each
@@ -117,8 +121,7 @@ D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone; applications
 
 **Model ladders (each ladder is one architecture, so the same code runs at every size):**
 - **Dense, Phases 1–4 (Llama):**
-  - Develop and debug on **Llama-3.2-1B**.
-  - Run studies on **Llama-3.1-8B**.
+  - Develop, test and run every study on **Llama-3.1-8B** (Llama-3.2-1B only as M10's draft and S8's small model).
   - Use **Llama-3.3-70B** for Phase 3.
 - **MoE + MLA, Phase 5 (DeepSeek-V3 architecture, which Kimi K2 uses):**
   - Tiny randomly initialized DeepseekV3 config for unit tests.
@@ -128,12 +131,13 @@ D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone; applications
 **Development environment — EC2 only, same code everywhere (revised 2026-11-14):** the MacBook is
 an editor; nothing runs on it.
 1. **g6.xlarge (1× L4) and g6.12xlarge (4× L4) — development and the CUDA path.**
-   - `pytest`, smoke runs of every study script (tiny configs or Llama-3.2-1B), and first-pass numbers.
+   - `pytest` and smoke runs of every study script (tiny configs or the 8B with small settings). No study numbers.
    - Fix CUDA-path bugs: FlashInfer integration, KV layout, CUDA graphs, FP8.
    - Dry-run every study; check multi-GPU correctness for D1–D3. TP sharding can also be checked with
      2 processes on PyTorch's CPU backend (gloo).
    - Moonlight-16B (~32 GB in bf16) fits on the g6.12xlarge.
-   - First-pass L4 numbers are labelled as such and never mixed with official ones.
+   - The 8B fits the L4 (16 GB of weights, ~6 GB left for KV), but its ~54 ms decode floor is above the TPOT
+     SLO, so the L4 checks that scripts run and outputs are correct; it never produces study numbers.
 2. **H100 and H200 — scripted runs only (decision 25).**
    - p5.4xlarge (1× H100 80 GB): Phase 1 official numbers, S0–S11.
    - p5.48xlarge (8× H100, NVLink, EFA): Phase 2 performance, Phase 3 multi-node (2 nodes), Phase 4.
@@ -149,12 +153,12 @@ an editor; nothing runs on it.
 
 **Study hardware (decided 2026-10-11, revised 2026-11-14):** development and smoke runs on a g6.xlarge. Phase 1 studies run together in
 scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one H100
-(p5.4xlarge, decision 25; L4 acceptable for a first pass). To make that work:
+(p5.4xlarge, decision 25; no L4 first pass). To make that work:
 - Tag every milestone (`m0`, `m1`, …) so each study can check out its milestone and the one before it.
 - Write each study's prediction when its milestone lands, while the code is fresh; the GPU session only
   measures and explains the gaps.
-- Smoke-run every study script on the g6.xlarge (tiny model or Llama-3.2-1B) to catch broken scripts
-  and check curve shapes before an official session.
+- Smoke-run every study script on the g6.xlarge (tiny model, or the 8B with small settings) to catch broken
+  scripts before an official session.
 - G2 runs in full on the GPU (32K-token perplexity + 200 GSM8K questions). The first GPU session records
   the HF baseline (`benchmarks/g2_quality.py --engine hf --save-baseline`), then checks every milestone
   tag against it.
@@ -492,7 +496,7 @@ decided late, so settle it before writing M2.
 | 21 | **Dollar budget per phase** (Phase 0) | Not set. Set one per phase and enforce it with AWS Budgets alerts |
 | 22 | **Exit criteria and write-ups** | Each milestone is done when its gates and robustness tests pass and its study note is written; each phase is done when its charts are in the README and one public write-up ships |
 | 23 | **Timeline realism / MVP cut** | ~25 weekends (plus ~7 for Phase 5) assumes almost every weekend alongside Track 1. If time runs short, the interview-ready core is **Phase 1a + M7 + D2 + D3**. D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone, and applications never wait for it |
-| 25 | **Measurement hardware per experiment** (before the v1 session) | **Decided 2026-11-14:** one measurement GPU per chain of studies. L4 (g6.xlarge) for development and first pass; 1× H100 (p5.4xlarge) for Phase 1 official; 8× H100 (p5.48xlarge) for Phases 2–4; p5en for Kimi K2. Baseline remeasured whenever the GPU changes; MBU/MFU reported next to ms ([note](decisions/25-measurement-hardware.md)) |
+| 25 | **Measurement hardware per experiment** (before the v1 session) | **Decided 2026-11-14:** one measurement GPU per chain of studies. L4 (g6.xlarge) for development and smoke runs; 1× H100 (p5.4xlarge) for Phase 1 official; 8× H100 (p5.48xlarge) for Phases 2–4; p5en for Kimi K2. Baseline remeasured whenever the GPU changes; MBU/MFU reported next to ms ([note](decisions/25-measurement-hardware.md)) |
 | 24 | **Phase 5 design choices** (before K3) | See "Phase 5 pending decisions" above (checkpoint, hardware, EFA all-to-all library, weight logistics, budget). Decide before K3, because K3's process layout must support EP + DP-attention |
 
 ---

@@ -3,8 +3,8 @@
 **Milestone:** M1 · **Compared against:** git tag `m0` (S0, no cache) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25; or L4 for a first pass) in the v1 GPU session
-- Model / dtype: Llama-3.1-8B, bf16 (Llama-3.2-1B for comparison)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session
+- Model / dtype: Llama-3.1-8B, bf16
 - Workload and load: batch 1, random token ids. Sweep A: prompt 128 → 16,384 tokens, 16 output tokens.
   Sweep B: 128-token prompt, 2,000 output tokens. Workloads A and B arrive with the M2 harness.
 - Command(s): `python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu h100`

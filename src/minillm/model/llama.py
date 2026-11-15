@@ -2,7 +2,7 @@
 
 Module and parameter names mirror Hugging Face's `LlamaForCausalLM`, so `loader.py` can copy the
 safetensors weights in by name. `tests/test_g0_correctness.py` and `tests/test_kv_cache.py` are the
-spec: they compare logits and greedy tokens with HF on tiny random configs and on Llama-3.2-1B.
+spec: they compare logits and greedy tokens with HF on tiny random configs and on Llama-3.1-8B.
 
 Shape legend: B batch, T tokens, D hidden_size, H query heads, Hkv KV heads, Dh head_dim, V vocab.
 """

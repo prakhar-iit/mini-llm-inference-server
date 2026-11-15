@@ -75,7 +75,7 @@ def test_kernel_on_a_decode_only_step(name):
 @pytest.mark.slow
 @pytest.mark.parametrize("name", KERNELS)
 def test_kernel_model_drift_within_g1b(name):
-    """Llama-3.2-1B in bf16, teacher-forced: the same ragged steps (one batched prefill of ragged prompts, then
+    """Llama-3.1-8B in bf16, teacher-forced: the same ragged steps (one batched prefill of ragged prompts, then
     decode steps feeding fixed tokens) through the kernel and through the reference. G1b's check, with the
     reference as its own noise baseline, so only G1b's floors apply."""
     kernel(name)
@@ -86,7 +86,7 @@ def test_kernel_model_drift_within_g1b(name):
 
     model_dir = real_model_dir()
     if model_dir is None:
-        pytest.skip("Llama-3.2-1B not downloaded")
+        pytest.skip("Llama-3.1-8B not downloaded")
     rng = random.Random(0)
     seqs = [[rng.randrange(3, 128000) for _ in range(n + 24)] for n in (12, 200, 57, 1, 640, 33, 90, 8)]
     prompt_lens = [len(t) - 24 for t in seqs]

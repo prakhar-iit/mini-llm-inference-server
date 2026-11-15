@@ -2,8 +2,8 @@
 
 The Llama repos are gated: request access on the model page first, then `hf auth login`.
 
-    python scripts/download_model.py                      # meta-llama/Llama-3.2-1B
-    python scripts/download_model.py meta-llama/Llama-3.1-8B
+    python scripts/download_model.py                      # meta-llama/Llama-3.1-8B (~16 GB)
+    python scripts/download_model.py meta-llama/Llama-3.2-1B  # only for M10's draft and S8's small model
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("repo_id", nargs="?", default="meta-llama/Llama-3.2-1B")
+    parser.add_argument("repo_id", nargs="?", default="meta-llama/Llama-3.1-8B")
     args = parser.parse_args()
 
     target = REPO / "models" / args.repo_id.split("/")[-1]

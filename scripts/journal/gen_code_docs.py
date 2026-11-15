@@ -24,7 +24,7 @@ R = "m0"
 # ---------------- M0 ----------------
 add("M0", "src/minillm/model/llama.py", "new", "python", at_ref(R, "src/minillm/model/llama.py"),
     "The whole Llama forward pass: RMSNorm, RoPE, attention, SwiGLU MLP, decoder layers, model, LM head.",
-    ["Trace one prompt through `LlamaForCausalLM.forward` and write the shape after every line, using B=1, T=6, D=2048.",
+    ["Trace one prompt through `LlamaForCausalLM.forward` and write the shape after every line, using B=1, T=6, D=4096 (Llama-3.1-8B).",
      "`RMSNorm`: why normalize in fp32 and multiply by `weight` only after casting back?",
      "`apply_rotary`: what pairing does `rotate_half` imply, and what breaks with interleaved pairs?",
      "`LlamaAttention`: what do `.view(b, t, -1, dh).transpose(1, 2)` and the reverse `transpose + reshape` do to the memory layout?",
@@ -36,8 +36,8 @@ add("M0", "src/minillm/model/rope.py", "new", "python", at_ref(R, "src/minillm/m
      "Llama 3 scaling: which band of frequencies is divided by `factor`, which is untouched, and why interpolate between them?"])
 add("M0", "src/minillm/model/config.py", "new", "python", at_ref(R, "src/minillm/model/config.py"),
     "Reads config.json into a frozen dataclass; accepts both the Hub format and transformers 5's `rope_parameters`.",
-    ["Which config fields change between Llama-3.2-1B, 3.1-8B and 3.3-70B? Everything else is the same code.",
-     "`num_kv_groups`: how many query heads share one KV head in the 1B model?"])
+    ["Which config fields change between Llama-3.1-8B and 3.3-70B? Everything else is the same code.",
+     "`num_kv_groups`: how many query heads share one KV head in the 8B model?"])
 add("M0", "src/minillm/model/loader.py", "new", "python", at_ref(R, "src/minillm/model/loader.py"),
     "Builds the model on the meta device and assigns safetensors tensors as its parameters.",
     ["What is the meta device, and why does building on it avoid a second copy of the weights?",
@@ -52,7 +52,7 @@ add("M0", "src/minillm/attention/torch_ref.py", "changed", "diff", git("diff", "
     ["Write the four steps SDPA performs (score, scale, mask, mix) with the tensor shape after each.",
      "What does `enable_gqa=True` save compared with repeating k and v for every query head?"])
 add("M0", "tests/test_g0_correctness.py", "test", "python", at_ref(R, "tests/test_g0_correctness.py"),
-    "G0 gate: logits and greedy tokens must match Hugging Face, on tiny configs and the real 1B model.",
+    "G0 gate: logits and greedy tokens must match Hugging Face, on tiny configs and the real 8B model.",
     ["Why do the tiny tests run in fp32 on CPU but the real-model test in bf16 on MPS?",
      "Why does the real-model test run HF with `use_cache=False`?"])
 add("M0", "tests/test_layers.py", "test", "python", at_ref(R, "tests/test_layers.py"),
@@ -86,7 +86,7 @@ add("M1", "src/minillm/evals.py", "new", "python", at_ref("m1", "src/minillm/eva
 add("M1", "benchmarks/s1_prefill_decode.py", "tool", "python", at_ref("m1", "benchmarks/s1_prefill_decode.py"),
     "S1 study script: TTFT and prefill MFU vs prompt length; ITL and decode MBU vs context.",
     ["Check `CostModel.prefill_flops` against the plan's formulas. What does it leave out?",
-     "Why does `decode_bytes` grow with context, and by how much per token for the 1B model?"])
+     "Why does `decode_bytes` grow with context, and by how much per token for the 8B model?"])
 add("M1", "tests/test_kv_cache.py", "test", "python", at_ref("m1", "tests/test_kv_cache.py"),
     "The cache must change cost, never output: decode, chunked prompts and generation all match a full pass and HF.",
     ["`test_prompt_in_chunks_matches_full_pass` exercises which backend branch, and which later milestones need it?"])
@@ -225,7 +225,7 @@ add("M4", "tests/test_continuous_batching.py", "test", "python", at_ref("m4", "t
 add("M5a", "src/minillm/cache/paged.py", "new", "python", at_ref("m5", "src/minillm/cache/paged.py"),
     "The paged pool: per layer, K and V tensors [num_blocks, 16, Hkv, Dh]; `PagedStep` is one step's view of it.",
     ["Where does token 37 of a request with block table [9, 4, 12] live? Give block and offset.",
-     "How many blocks fit in 1 GiB for Llama-3.2-1B in bf16? How many tokens is that?",
+     "How many blocks fit in 1 GiB for Llama-3.1-8B in bf16? How many tokens is that?",
      "Why does `PagedStep` have nothing to mark or advance, unlike M1's KVCache?"])
 add("M5a", "src/minillm/attention/metadata.py", "new", "python", at_ref("m5", "src/minillm/attention/metadata.py"),
     "Per-step metadata for a ragged batch: query_start_loc, seq_lens, positions, slot_mapping, block_tables.",
@@ -270,7 +270,7 @@ add("M5c", "src/minillm/attention/flash_attn_backend.py", "new", "python", at_re
     ["Why can't upstream flash-attn 2 read these pages?",
      "flash-attn has no plan step. What does FlashInfer's plan buy it, and when does that matter (M8)?"])
 add("M5b", "tests/test_kernels.py", "test", "python", at_ref("m5", "tests/test_kernels.py"),
-    "Kernels vs the reference on one GPU: a mixed ragged step, a decode-only step, and teacher-forced G1b on the 1B.",
+    "Kernels vs the reference on one GPU: a mixed ragged step, a decode-only step, and teacher-forced G1b on the 8B.",
     ["Why compare against the reference in bf16 with a tolerance instead of exact tokens?"])
 
 # ---------------- M6 (tag m6) ----------------

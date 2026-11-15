@@ -35,7 +35,6 @@ Bytes per block per layer = 2 (K and V) × 16 × Hkv × Dh × 2 (bf16):
 
 | Model | One block, one layer | One block, all layers | 8K-token prompt, one layer |
 |---|---|---|---|
-| Llama-3.2-1B (16 layers, 8 KV heads, Dh 64) | 32 KB | 512 KB | 16 MB |
 | Llama-3.1-8B (32 layers, 8 KV heads, Dh 128) | 64 KB | 2 MB | 32 MB |
 
 - Waste from partly filled last blocks averages 7.5 tokens per request, which is under 5% for any request longer

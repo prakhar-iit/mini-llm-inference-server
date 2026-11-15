@@ -1,6 +1,6 @@
 """Start the server: the API frontend in this process, the engine core in a child process.
 
-    python -m minillm.server --model-dir models/Llama-3.2-1B --port 8000
+    python -m minillm.server --model-dir models/Llama-3.1-8B --port 8000
 """
 
 from __future__ import annotations

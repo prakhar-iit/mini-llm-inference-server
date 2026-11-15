@@ -36,8 +36,9 @@ Engine-side timings (queue, prefill, decode, cache-hit tokens) come from the per
 ## Hardware tiers
 - **Official:** Llama-3.1-8B on one H100 (p5.4xlarge). Decode floor ≈ 4.8 ms. *Amended 2026-11-14 by
   decision 25: the A100 is no longer an official tier.*
-- **L4 first pass:** Llama-3.2-1B (decode floor ≈ 8 ms). Llama-3.1-8B on the L4 has a ≈ 54 ms decode
-  floor, above the TPOT SLO, so it can never pass; don't use it for goodput.
+- **L4: tests and smoke runs only** (amended 2026-11-14, decision 25). The 8B on the L4 has a ≈ 54 ms decode
+  floor, above the TPOT SLO, so it can never pass; no study numbers come from the L4. The Llama-3.2-1B L4 tier
+  is dropped.
 - **No Mac tier** (dropped 2026-11-14): every run is on EC2.
 
 ## Sanity checks behind the numbers

@@ -14,7 +14,7 @@ Part C, kernels (M5b/M5c, GPU): decode step time at batch × context for the tor
 flash-attn on the same pages, and M4's contiguous slots. Backends that aren't built yet are reported as skipped.
 
     python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu h100
-    python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.2-1B --kv-gb 0.25 --max-model-len 2048 \\
+    python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 0.25 --max-model-len 2048 \\
         --requests 32 --out-max 256 --fractions 1,0.5,0.25,0.125 --batches 1,8 --contexts 256,1024  # smoke run
 """
 

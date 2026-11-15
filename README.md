@@ -46,7 +46,7 @@ Everything runs on EC2. The MacBook is only an editor: no tests, smoke runs or s
 
 | Tier | Machine | Use it for |
 |---|---|---|
-| 1 | AWS g6.xlarge (1× L4) / g6.12xlarge (4× L4) | Development, `pytest`, smoke runs, CUDA path, study dry runs, multi-GPU correctness |
+| 1 | AWS g6.xlarge (1× L4) / g6.12xlarge (4× L4) | Development, `pytest`, smoke runs, CUDA path, multi-GPU correctness; no study numbers |
 | 2 | AWS p5.4xlarge (1× H100) | Scripted runs only: Phase 1 official numbers (S0–S11) |
 | 3 | AWS p5.48xlarge (8× H100); p5en (8× H200) for Kimi K2 | Scripted runs only: Phases 2–4 performance, multi-node; Phase 5 |
 
@@ -59,13 +59,13 @@ uv venv && source .venv/bin/activate     # Python 3.12, pinned in .python-versio
 uv pip install -e ".[dev,cuda]"
 pytest -q -rs                    # skips list unfinished milestone work ("not implemented yet: M0 ...")
 python -m minillm.device        # prints the device and dtype this machine will use
-hf auth login && python scripts/download_model.py   # Llama-3.2-1B into models/ (gated: request access first)
+hf auth login && python scripts/download_model.py   # Llama-3.1-8B into models/, ~16 GB (gated: request access first)
 ```
 
 Run the server (OpenAI-compatible; the engine runs in its own process):
 
 ```bash
-python -m minillm.server --model-dir models/Llama-3.2-1B --port 8000
+python -m minillm.server --model-dir models/Llama-3.1-8B --port 8000
 curl -N localhost:8000/v1/completions -H 'content-type: application/json' \
   -d '{"prompt": "The capital of France is", "max_tokens": 20, "stream": true}'
 ```
@@ -77,7 +77,8 @@ M5c (flash-attn) installs separately; see `pyproject.toml` (decision 7).
 - Predict before measuring; write the gap down in `docs/studies/`.
 - Correctness gate at every milestone: greedy output matches Hugging Face at batch 1, and logits stay
   within tolerance under batching. Compare on the same device only.
-- First-pass L4 numbers are labelled as such and never mixed with official H100 numbers.
+- Llama-3.1-8B is the model for every study; the L4 runs tests and smoke runs only, and every study number comes
+  from the H100 (decision 25).
 - Every change updates every doc it affects, including the course. See `CLAUDE.md`.
 
 ## References

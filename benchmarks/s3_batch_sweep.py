@@ -11,7 +11,7 @@ computed. Reported: the fraction of computed rows that produced a kept token, an
 wait for long ones.
 
     python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu h100
-    python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.2-1B --batches 1,2,4,8,16 --decode-steps 32 \\
+    python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --batches 1,2,4,8,16 --decode-steps 32 \\
         --mixed-requests 32  # smoke run
 """
 

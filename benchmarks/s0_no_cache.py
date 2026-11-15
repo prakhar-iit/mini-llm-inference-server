@@ -9,7 +9,7 @@ This script measures:
 Writes results/s0_<tag>.csv and results/s0_<tag>.png. Smoke-run numbers (tiny model) are for checking the shape
 only; the study's numbers come from the L4 (see the plan's dev tiers).
 
-    python benchmarks/s0_no_cache.py --model-dir models/Llama-3.2-1B
+    python benchmarks/s0_no_cache.py --model-dir models/Llama-3.1-8B
     python benchmarks/s0_no_cache.py --tiny            # random tiny model, smoke test
 """
 

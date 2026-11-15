@@ -1,5 +1,5 @@
 D({unit:"0",n:"25",title:"Measurement hardware per experiment",status:"decided",
-choice:"One measurement GPU per chain of studies. L4 (g6.xlarge, $0.80/h) for development and first pass; g6.12xlarge (4× L4) for multi-GPU correctness; 1× H100 (p5.4xlarge, $6.88/h) for Phase 1 official S0–S11; 8× H100 (p5.48xlarge) for Phases 2–4; p5en (8× H200) for Kimi K2. When the GPU changes, remeasure the baseline and report MBU/MFU next to the milliseconds.",
+choice:"One measurement GPU per chain of studies. L4 (g6.xlarge, $0.80/h) for development, tests and smoke runs (no study numbers); g6.12xlarge (4× L4) for multi-GPU correctness; 1× H100 (p5.4xlarge, $6.88/h) for Phase 1 official S0–S11; 8× H100 (p5.48xlarge) for Phases 2–4; p5en (8× H200) for Kimi K2. When the GPU changes, remeasure the baseline and report MBU/MFU next to the milliseconds.",
 why:"Bandwidth sets decode time and compute sets prefill time, so a GPU change moves every number. Keeping one chip, the H100, from Phase 1 to Phase 4 means each gain comes from the code. The single-H100 p5.4xlarge is the cheapest official GPU and has FP8 for S9a."});
 
 D({unit:"0",n:"20 (partial), 21",title:"Budget and AWS access before the first instance",status:"open",
@@ -143,7 +143,7 @@ TTFT saved per hit ≈ cached tokens × prefill time per token`,
 example:`<b>Worked example</b>Workload C turn 4: ~4.4K tokens of history are cached on the replica that served turn 3. Routing there prefills ~300 new tokens; round-robin to another replica prefills all ~4.7K (~0.5 s on an A100).`,
 predict:["Hit rate per policy on workload C at moderate load.","p99 TTFT per policy as load rises.","At what load does pure prefix-affinity lose to least-loaded?"],
 lab:{name:"D2 · Routing policies",why:"Show cache-aware routing as the agent-serving differentiator, with numbers.",
-spec:[["Instance","g6.12xlarge (4 replicas, 1B) for logic; p5.48xlarge (8B replicas) for numbers"],["Workload","Workload C at rising load"],["Policies","Round-robin, least-loaded, prefix/session-aware"],["Tracing","OpenTelemetry added here (decision 6)"]],
+spec:[["Instance","g6.12xlarge (4 replicas of the 8B) for logic; p5.48xlarge (8B replicas) for numbers"],["Workload","Workload C at rising load"],["Policies","Round-robin, least-loaded, prefix/session-aware"],["Tracing","OpenTelemetry added here (decision 6)"]],
 metrics:[["Prefix hit rate","Per policy"],["p99 TTFT",""],["Goodput",""],["Load imbalance","Max ÷ mean queue depth"]],
 expected:"Cache-aware routing wins on hit rate and TTFT until load imbalance takes over; a combined score wins overall."},
 learn:"Routing decides the cache hit rate; the router is where agent serving is won.",

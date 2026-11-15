@@ -355,7 +355,7 @@ footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--lin
       <p class="lede">An LLM inference server built from scratch, one optimization at a time. Each step records what was built, the concepts it took, and what the tests and measurements turned up, including the bugs.</p>
       <dl class="now" id="now">
         <div><dt>Current step</dt><dd id="now-step">M0 → S0</dd></div>
-        <div><dt>Model</dt><dd>Llama-3.2-1B</dd></div>
+        <div><dt>Model</dt><dd>Llama-3.1-8B</dd></div>
         <div><dt>Tests</dt><dd id="now-tests">—</dd></div>
         <div><dt>Updated</dt><dd id="now-updated">—</dd></div>
       </dl>
@@ -369,7 +369,7 @@ footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--lin
     <div class="panel" id="panel-journal" role="tabpanel" aria-labelledby="tab-journal">
     <section aria-labelledby="pipe-h">
       <h2 id="pipe-h">The forward pass so far</h2>
-      <p class="sub">One pass over the prompt “The capital of France is” (B = 1, T = 6) through Llama-3.2-1B. Every stage below is code in this repo, checked against Hugging Face.</p>
+      <p class="sub">One pass over the prompt “The capital of France is” (B = 1, T = 6) through Llama-3.1-8B. Every stage below is code in this repo, checked against Hugging Face.</p>
       <div class="pipe-scroll">
         <div class="pipe" role="table" aria-label="Llama forward pass stages">
           <div class="hd" role="columnheader">Stage</div>
@@ -378,15 +378,15 @@ footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--lin
           <div class="hd" role="columnheader" style="text-align:right">Built</div>
 
           <div class="stage">Token ids</div><div class="shp">[1, 6]</div><div class="what">Tokenizer output, one id per token</div><div class="who">HF</div>
-          <div class="stage">embed_tokens</div><div class="shp">[1, 6, 2048]</div><div class="what">Table lookup: each id becomes a 2,048-number vector</div><div class="who">M0</div>
-          <div class="stage">RotaryEmbedding</div><div class="shp">cos, sin [1, 6, 64]</div><div class="what">Angles = position × 32 speeds, computed once per pass</div><div class="who">M0</div>
-          <div class="stage loop">RMSNorm</div><div class="shp loop">[1, 6, 2048]</div><div class="what loop">Rescale each vector to RMS 1 (in fp32), times learned weight</div><div class="who loop">M0</div>
-          <div class="stage loop">Attention</div><div class="shp loop">q [1, 32, 6, 64] · kv [1, 8, 6, 64]</div><div class="what loop">Project, RoPE on q and k, store k and v in the KV cache, causal SDPA with GQA (4 query heads per KV head) over every cached token, o_proj, add to residual</div><div class="who loop">M0·M1</div>
-          <div class="stage loop">RMSNorm</div><div class="shp loop">[1, 6, 2048]</div><div class="what loop">Same as above, before the MLP</div><div class="who loop">M0</div>
-          <div class="stage loop">SwiGLU MLP</div><div class="shp loop">2048 → 8192 → 2048</div><div class="what loop">down(silu(gate(x)) × up(x)), about two-thirds of each layer's weights; add to residual</div><div class="who loop">M0</div>
-          <div class="stage">Final RMSNorm</div><div class="shp">[1, 6, 2048]</div><div class="what">Normalize the residual stream once at the end</div><div class="who">M0</div>
-          <div class="stage">lm_head</div><div class="shp">[1, 6, 128256]</div><div class="what">Scores for every vocabulary token at every position; tied to embed_tokens</div><div class="who">M0</div>
-          <div class="stage">Greedy step</div><div class="shp">[1, 1, 128256]</div><div class="what">Logits for the last position only; argmax picks the token. Next step feeds just that token and reads the rest from the cache (32 KB per token)</div><div class="who">M1</div>
+          <div class="stage">embed_tokens</div><div class="shp">[1, 6, 4096]</div><div class="what">Table lookup: each id becomes a 4,096-number vector</div><div class="who">M0</div>
+          <div class="stage">RotaryEmbedding</div><div class="shp">cos, sin [1, 6, 128]</div><div class="what">Angles = position × 64 speeds, computed once per pass</div><div class="who">M0</div>
+          <div class="stage loop">RMSNorm</div><div class="shp loop">[1, 6, 4096]</div><div class="what loop">Rescale each vector to RMS 1 (in fp32), times learned weight</div><div class="who loop">M0</div>
+          <div class="stage loop">Attention</div><div class="shp loop">q [1, 32, 6, 128] · kv [1, 8, 6, 128]</div><div class="what loop">Project, RoPE on q and k, store k and v in the KV cache, causal SDPA with GQA (4 query heads per KV head) over every cached token, o_proj, add to residual</div><div class="who loop">M0·M1</div>
+          <div class="stage loop">RMSNorm</div><div class="shp loop">[1, 6, 4096]</div><div class="what loop">Same as above, before the MLP</div><div class="who loop">M0</div>
+          <div class="stage loop">SwiGLU MLP</div><div class="shp loop">4096 → 14336 → 4096</div><div class="what loop">down(silu(gate(x)) × up(x)), about two-thirds of each layer's weights; add to residual</div><div class="who loop">M0</div>
+          <div class="stage">Final RMSNorm</div><div class="shp">[1, 6, 4096]</div><div class="what">Normalize the residual stream once at the end</div><div class="who">M0</div>
+          <div class="stage">lm_head</div><div class="shp">[1, 6, 128256]</div><div class="what">Scores for every vocabulary token at every position; a separate matrix from embed_tokens in the 8B</div><div class="who">M0</div>
+          <div class="stage">Greedy step</div><div class="shp">[1, 1, 128256]</div><div class="what">Logits for the last position only; argmax picks the token. Next step feeds just that token and reads the rest from the cache (128 KB per token)</div><div class="who">M1</div>
         </div>
       </div>
     </section>
@@ -425,7 +425,7 @@ footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--lin
     </div>
 
     <footer>
-      Plan and code: <a href="https://github.com/prakhar-iit/mini-llm-inference-server" target="_blank" rel="noopener">github.com/prakhar-iit/mini-llm-inference-server</a>. Study notes live in <code>docs/studies/</code>; L4 numbers are a first pass, official numbers come from the H100 runs.
+      Plan and code: <a href="https://github.com/prakhar-iit/mini-llm-inference-server" target="_blank" rel="noopener">github.com/prakhar-iit/mini-llm-inference-server</a>. Study notes live in <code>docs/studies/</code>; the L4 is for development and smoke runs only, every study number comes from the H100 runs.
     </footer>
   </main>
 </div>

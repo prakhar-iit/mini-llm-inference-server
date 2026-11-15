@@ -1,4 +1,4 @@
-const FIRST = "g6.xlarge (1× L4 24 GB), Llama-3.2-1B, bf16";
+const FIRST = "g6.xlarge (1× L4 24 GB), Llama-3.1-8B, bf16; smoke run only, no numbers";
 const OFFICIAL = "p5.4xlarge (1× H100 80 GB), Llama-3.1-8B, bf16";
 
 const UNITS = [
@@ -8,7 +8,7 @@ const UNITS = [
 {id:"1a",key:"unit-1a",title:"Core engine → v1",short:"M0–M6 on one GPU",
  goal:"Build a working LLM server from a bare generation loop up to paged KV and prefix caching, and measure what each step buys.",
  outcome:"Tag v1: gates G0–G2 and R1–R4 green, S0–S6 measured on one H100, README charts and one write-up. Inference-platform applications open here.",
- facts:[["Milestones","M0 → M6, all built and tagged m0–m6"],["Studies","S0–S6, scripts written, pending EC2 runs"],["Hardware","L4 first pass, H100 (p5.4xlarge) official"],["Model","Llama-3.2-1B dev, Llama-3.1-8B studies"]]},
+ facts:[["Milestones","M0 → M6, all built and tagged m0–m6"],["Studies","S0–S6, scripts written, pending EC2 runs"],["Hardware","L4 for tests, H100 (p5.4xlarge) for every number"],["Model","Llama-3.1-8B throughout"]]},
 {id:"1b",key:"unit-1b",title:"Optimizations → v1.1",short:"M7–M10 + vs vLLM",
  goal:"Add the four optimizations production engines ship with, each as its own measured study, then compare the whole engine with vLLM.",
  outcome:"Tag v1.1: S0–S10 rerun on the H100, R4 soak rerun, and an honest gap analysis against vLLM (S11).",
@@ -46,10 +46,10 @@ const ORIENTATION = `
 <li><div><b>Record it.</b> <code>docs/studies/SN-name.md</code>: setup, prediction, chart, result, one paragraph of explanation.</div></li>
 </ol></div>
 <div class="sec"><h2>Hardware: EC2 only</h2>
-<p>Every run, including first-pass checks, happens on EC2. Scripts are ready before an instance starts, and each session runs a batch of studies.</p>
+<p>Every run, including tests and smoke runs, happens on EC2. Scripts are ready before an instance starts, and each session runs a batch of studies.</p>
 <p><b>One measurement GPU per chain of studies</b> (decision 25). Bandwidth sets decode time and compute sets prefill time, so a GPU change moves every number. Each chain (S0→S11, then Phases 2–4) stays on one chip, the H100. When the GPU must change, remeasure the baseline on the new one and report MBU and MFU next to the milliseconds; those carry across GPUs.</p>
 <div class="tbl"><table><thead><tr><th>Tier</th><th>Instance</th><th>Used for</th></tr></thead><tbody>
-<tr><td>First pass</td><td>g6.xlarge (1× L4 24 GB)</td><td>CUDA path, kernel integration, study dry runs on Llama-3.2-1B</td></tr>
+<tr><td>Development</td><td>g6.xlarge (1× L4 24 GB)</td><td>pytest, CUDA path, kernel integration, smoke runs on Llama-3.1-8B. No study numbers: the 8B's ~54 ms decode floor is above the TPOT SLO</td></tr>
 <tr><td>Multi-GPU correctness</td><td>g6.12xlarge (4× L4, PCIe)</td><td>D1–D3 correctness, Moonlight-16B (Phase 5)</td></tr>
 <tr><td>Phase 1 official</td><td>p5.4xlarge (1× H100 80 GB), $6.88/h</td><td>S0–S11 on Llama-3.1-8B</td></tr>
 <tr><td>Phases 2–4</td><td>p5.48xlarge (8× H100, NVLink, EFA)</td><td>D1–D5, N2–N4 and P1–P3 (2 nodes), EKS and the cost study</td></tr>
@@ -57,9 +57,9 @@ const ORIENTATION = `
 </tbody></table></div></div>
 <div class="sec"><h2>Models</h2>
 <div class="tbl"><table><thead><tr><th>Model</th><th>Role</th><th>KV per token</th></tr></thead><tbody>
-<tr><td>Llama-3.2-1B</td><td>First-pass runs, draft model for M10, small-model side of S8</td><td class="n">32 KB</td></tr>
-<tr><td>Llama-3.1-8B</td><td>Every official study in Phases 1–2</td><td class="n">128 KB</td></tr>
+<tr><td>Llama-3.1-8B</td><td>Development, tests and every study in Phases 1–2</td><td class="n">128 KB</td></tr>
 <tr><td>Llama-3.3-70B</td><td>Phase 3 multi-node layouts</td><td class="n">320 KB bf16 · 160 KB fp8</td></tr>
+<tr><td>Llama-3.2-1B</td><td>Only a tool: M10's draft model and S8's small-model side</td><td class="n">32 KB</td></tr>
 <tr><td>Moonlight-16B-A3B</td><td>Phase 5 development (DeepSeek-V3 architecture)</td><td class="n">MLA latent</td></tr>
 <tr><td>Kimi K2.x</td><td>Phase 5 target: 1T total, 32B active</td><td class="n">≈ 69 KB</td></tr>
 </tbody></table></div></div>
@@ -102,11 +102,11 @@ lesson:`<p>A decoder-only model like Llama turns a sequence of token ids into a 
 formula:`FLOPs per token          ≈ 2 × params
 step t without a cache   ≈ 2 × params × t  (+ attention 2·t²·d·L)
 total for n tokens       ≈ params × n²        → quadratic`,
-example:`<b>Worked example</b>Llama-3.2-1B (1.24B params, 2.5 GB in bf16) on an L4 (121 TFLOPS, 300 GB/s). At t = 128 a step needs 3.2×10¹¹ FLOPs (~5 ms at 50% MFU) but must read 2.5 GB of weights (~8 ms), so it is memory-bound. At t = 4,096 it needs 1×10¹³ FLOPs (~170 ms): now compute-bound, ~20× slower than at 128.`,
+example:`<b>Worked example</b>Llama-3.1-8B (8.0B params, 16 GB in bf16) on an H100 (~989 TFLOPS, 3.35 TB/s). At t = 128 a step needs 2×10¹² FLOPs (~4 ms at 50% MFU) but must read 16 GB of weights (~4.8 ms), so it is just memory-bound. At t = 4,096 it needs 6.6×10¹³ FLOPs (~130 ms): now compute-bound, ~28× slower than at 128.`,
 diag:"prefilldecode",
-predict:["Step time at L = 128 on the L4: compute-bound or bandwidth-bound? Give a number in ms.","Step time at L = 4,096: how many times the L = 128 time, and why?","At what L does the n² attention term become a noticeable share of the step's FLOPs?","Shape of cumulative time for 256 generated tokens: linear, quadratic, or in between?"],
+predict:["Step time at L = 128 on the H100: compute-bound or bandwidth-bound? Give a number in ms.","Step time at L = 4,096: how many times the L = 128 time, and why?","At what L does the n² attention term become a noticeable share of the step's FLOPs?","Shape of cumulative time for 256 generated tokens: linear, quadratic, or in between?"],
 lab:{name:"S0 · Cost of no cache",why:"Measure the waste the KV cache removes, so M1's gain has a baseline you produced yourself.",
-spec:[["Instance","g6.xlarge (1× L4)"],["Model","Llama-3.2-1B, bf16 (8B if time allows)"],["Workload","Batch 1, random token ids; step time at L = 128 … 4,096; 256 tokens from a 16-token prompt"],["Command","<code>python benchmarks/s0_no_cache.py --model-dir models/Llama-3.2-1B</code>"],["Gates","G0: greedy tokens identical to Hugging Face"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random token ids; step time at L = 128 … 4,096; 256 tokens from a 16-token prompt"],["Command","<code>python benchmarks/s0_no_cache.py --model-dir models/Llama-3.1-8B</code>"],["Gates","G0: greedy tokens identical to Hugging Face"]],
 metrics:[["Step time vs L","Where the line bends from flat (memory) to rising (compute)"],["Cumulative time","Linear at first, then quadratic"],["MFU / MBU per L","Which resource limits each length"]],
 expected:"Per-token time roughly flat while weight reads dominate, then rising linearly with length; total time for n tokens bends quadratic."},
 learn:"The KV cache exists because recomputing the past is quadratic and almost entirely repeated work.",
@@ -126,7 +126,7 @@ example:`<b>Worked example</b>8B on an H100: 16 GB of weights ÷ 3.35 TB/s = <b>
 diag:"roofline",
 predict:["Decode floor for the 8B on your GPU. Will measured ITL land near it? What MBU do you expect, and why not 100%?","TTFT at 128 vs 4,096 tokens: linear in prompt length? Past roughly what length does the n² attention term make it grow faster?","Prefill MFU at 4K tokens vs decode MFU. Why are they orders of magnitude apart?","Does ITL rise as context grows from 128 to 2,000 tokens? By how much?","Versus S0 (tag m0): per-token time at context 2,048 without and with the cache."],
 lab:{name:"S1 · Prefill vs decode",why:"Show that the two phases are different problems, with numbers you will reuse in every later prediction.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random ids. Sweep A: prompt 128 → 16,384, 16 out. Sweep B: 128 in, 2,000 out. Then workloads A and B."],["Command","<code>python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G0; G2 baseline recorded with <code>benchmarks/g2_quality.py --engine hf --save-baseline</code>"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random ids. Sweep A: prompt 128 → 16,384, 16 out. Sweep B: 128 in, 2,000 out. Then workloads A and B."],["Command","<code>python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G0; G2 baseline recorded with <code>benchmarks/g2_quality.py --engine hf --save-baseline</code>"]],
 metrics:[["TTFT vs prompt length","Linear, then superlinear where attention n² grows"],["ITL vs context","Flat near the decode floor, slow rise from KV reads"],["Prefill MFU","Expected 40–60%"],["Decode MBU / MFU","Expected MBU 70–85%, MFU under 1%"],["Phase share of A and B","A ≈ 30–40% prefill; B ≈ 99% decode"]],
 expected:"TTFT linear in prompt length, superlinear past ~8K. ITL flat near the decode floor. Prefill MFU 40–60%; decode MBU 70–85% with MFU below 1%."},
 learn:"Prefill is compute-bound and decode is memory-bound. A single request leaves most of the GPU's arithmetic idle during decode.",
@@ -150,7 +150,7 @@ example:`<b>Worked example</b>8B on an A100, 128 in / 32 out: prefill ≈ 13 ms 
 diag:"queue",
 predict:["Non-GPU overhead per request (HTTP, tokenize, ZMQ both ways, SSE): how many ms, and what share of TTFT for a 32-token prompt? Which stage is largest?","Service time S for 128 in / 32 out on the 8B.","M/D/1 mean wait at ρ = 0.5, 0.8, 0.9 in units of S. At what ρ does p99 TTFT cross 1 s?","Above ρ = 1, how does wait grow with requests sent, and why does throughput cap at 1/S?","What fraction of the GPU sits idle at the capacity limit?"],
 lab:{name:"S2 · Overhead and queueing",why:"Separate fixed serving overhead from GPU time, and find the load where one-at-a-time serving breaks the SLO.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Part 1","100 sequential requests, 32-token prompt, 1 output token, idle server"],["Part 2","128 in / 32 out; measure S; Poisson arrivals at ρ = 0.2 … 1.2; ≥ 1,000 requests per point after a 30 s warm-up"],["Command","<code>python -m minillm.server --model-dir models/Llama-3.1-8B --timeline-log results/s2_timeline.jsonl</code> then <code>python benchmarks/s2_overhead_queueing.py --base-url http://127.0.0.1:8000 --vocab-size 128256 --per-rate 1200</code>"],["Gates","G0 through the API; R1 cancellation"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Part 1","100 sequential requests, 32-token prompt, 1 output token, idle server"],["Part 2","128 in / 32 out; measure S; Poisson arrivals at ρ = 0.2 … 1.2; ≥ 1,000 requests per point after a 30 s warm-up"],["Command","<code>python -m minillm.server --model-dir models/Llama-3.1-8B --timeline-log results/s2_timeline.jsonl</code> then <code>python benchmarks/s2_overhead_queueing.py --base-url http://127.0.0.1:8000 --vocab-size 128256 --per-rate 1200</code>"],["Gates","G0 through the API; R1 cancellation"]],
 metrics:[["TTFT breakdown","HTTP, tokenize, frontend→engine, queue, prefill, emit"],["Queue wait vs ρ","Against the M/D/1 curve"],["p99 TTFT vs ρ","Where it crosses the 1 s SLO"],["Throughput","Flattens at 1/S"]],
 expected:"A few ms of fixed overhead. Latency hockey-sticks as ρ approaches 1, and throughput stops at 1/S."},
 learn:"Queueing theory predicts the knee. One-at-a-time serving hits it while the GPU is mostly idle.",
@@ -172,7 +172,7 @@ example:`<b>Worked example</b>8B, B = 32 at context 600: KV read = 32 × 600 × 
 diag:"batching",
 predict:["Decode step time at B = 1 and B = 32: how much slower, and why?","At what B does arithmetic intensity reach your GPU's balance point? Is that inside the 1–64 sweep?","Throughput at B = 64 vs B = 1: ideal is 64×. What do you expect, and what limits it inside the sweep (KV reads, attention, Python per-step overhead)?","Lengths uniform 16–512 in batches of 16: what fraction of decode rows is wasted? How long do queued requests wait?","Which of these costs does continuous batching remove, and which remain?"],
 lab:{name:"S3 · Batch-size sweep",why:"Measure what batching recovers from S2's idle GPU, and what static batching still wastes.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","B = 1 → 64 workload-B requests decoding together, equal lengths"],["Part B","128 requests, outputs uniform 16–512, queued at once, static batches of 16"],["Command","<code>python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G1a fp32 exact; G1b bf16 within 2× HF batch noise"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Part A","B = 1 → 64 workload-B requests decoding together, equal lengths"],["Part B","128 requests, outputs uniform 16–512, queued at once, static batches of 16"],["Command","<code>python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G1a fp32 exact; G1b bf16 within 2× HF batch noise"]],
 metrics:[["Step time vs B","Nearly flat while memory-bound"],["Tokens/s vs B","Near-linear, then the knee"],["Wasted rows","Share of decode rows on finished requests"],["Queue wait","How long later batches wait"]],
 expected:"Throughput near-linear in B while memory-bound, ITL nearly flat. The roofline knee lies past B = 64 on A100, H100 and L4, so any flattening inside the sweep comes from KV reads and overhead. On mixed lengths, short requests wait for the longest."},
 learn:"Batching uses the compute decode leaves idle. Static batching gives some of it back to padding and head-of-line blocking.",
@@ -197,7 +197,7 @@ example:`<b>Worked example</b>Mix at 0.67 req/s total, so A arrives at 0.2/s and
 diag:"stall",
 predict:["Service time of an A request and a B request; each engine's capacity in req/s on the 30/70 mix with batch 16.","Goodput at M3's knee vs M4's knee. Where does the factor come from?","p99 TTFT for B below the knee: M3 waits for a whole batch, M4 for one slot. Numbers for both.","How many A prefills does a B request see at A rate λ? What happens to its TPOT, and what happens to p99 ITL across all B gaps?","R2 at 2–3× the knee: is 64 waiting small enough that admitted requests still meet TTFT?"],
 lab:{name:"S4 · Mixed traffic",why:"Measure goodput from iteration-level scheduling on the traffic that hurts static batching most, and expose the prefill stall.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Mix 30% A / 70% B, open-loop Poisson up to 2–3× M4's knee, ≥ 1,000 requests per rate, 30 s warm-up excluded"],["Servers","Both <code>--max-batch-size 16</code>; M4 also <code>--max-num-batched-tokens 8192 --max-waiting 64</code>; M3 from tag m3 on port 8001"],["Command","<code>python benchmarks/s4_mixed_traffic.py --base-url ... --tokenizer models/Llama-3.1-8B --tag m3|m4</code>, then <code>--compare m3,m4</code>"],["Gates","G1a under joins, leaves and slot reuse; G1b; R2 checked by the rates past the knee"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Workload","Mix 30% A / 70% B, open-loop Poisson up to 2–3× M4's knee, ≥ 1,000 requests per rate, 30 s warm-up excluded"],["Servers","Both <code>--max-batch-size 16</code>; M4 also <code>--max-num-batched-tokens 8192 --max-waiting 64</code>; M3 from tag m3 on port 8001"],["Command","<code>python benchmarks/s4_mixed_traffic.py --base-url ... --tokenizer models/Llama-3.1-8B --tag m3|m4</code>, then <code>--compare m3,m4</code>"],["Gates","G1a under joins, leaves and slot reuse; G1b; R2 checked by the rates past the knee"]],
 metrics:[["Goodput","Requests/s meeting both SLOs"],["p99 TTFT per class","A and B separately"],["p99 ITL for B","Shows the prefill stall directly"],["TPOT for B","Averages the stall away; compare with ITL"],["Rejection rate","503s past the knee"]],
 expected:"Several× goodput on high length variance and much lower p99 TTFT. B's ITL spikes when a long prompt joins."},
 learn:"Scheduling at every step recovers most of static batching's waste. Prefill and decode now interfere inside one step.",
@@ -221,7 +221,7 @@ example:`<b>Worked example</b>8 GiB budget, 8B (128 KB/token), max_model_len 8,1
 diag:"paged",
 predict:["Part A: how many contiguous slots fit in 8 GiB at 8,192? What fraction of each holds real tokens? How many fit paged?","Block fill: what share of held block slots hold real tokens for ~600-token requests?","How much faster is decode with several× more requests running, given S3's batch curve? Where does it stop helping?","Part B: at which pool size do preemptions start? What does each cost? Why is the cliff sharp?","Part C: bytes the reference copies at 4,096 tokens × batch 32 vs the weights read. How close should FlashInfer and flash-attn get to contiguous?"],
 lab:{name:"S5 · KV pressure",why:"Show that memory caps decode throughput, and that a paged kernel removes the cost of reading through a block table.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","256 workload-B requests (100 in, outputs 16–1,000), in-process, max_model_len 8,192"],["Parts","A: 8 GiB, contiguous vs paged. B: pool at 1, ½, ¼, ⅛, 1/16. C: decode step at batch 1/8/32 × ctx 512/4,096 for slots, reference, FlashInfer, flash-attn"],["Command","<code>python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu h100 --backends torch_ref,flashinfer,flash_attn</code>"],["Gates","G0/G1a on paged KV incl. preempted requests; R3 after every run; each kernel vs reference within G1b"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Workload","256 workload-B requests (100 in, outputs 16–1,000), in-process, max_model_len 8,192"],["Parts","A: 8 GiB, contiguous vs paged. B: pool at 1, ½, ¼, ⅛, 1/16. C: decode step at batch 1/8/32 × ctx 512/4,096 for slots, reference, FlashInfer, flash-attn"],["Command","<code>python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu h100 --backends torch_ref,flashinfer,flash_attn</code>"],["Gates","G0/G1a on paged KV incl. preempted requests; R3 after every run; each kernel vs reference within G1b"]],
 metrics:[["Concurrent requests","Average and max running"],["Block fill","Share of held slots with real tokens"],["Tokens/s","Paged vs contiguous"],["Preemptions + recomputed tokens","Where the cliff starts"],["Decode step time per backend","Reference vs FlashInfer vs flash-attn vs slots"]],
 expected:"Paged waste under ~5%, several× concurrency. Preemption shows as TTFT/ITL cliffs. The reference falls behind with context; FlashInfer within ~10% of contiguous; the two kernels within 10–20% of each other."},
 learn:"KV memory caps concurrency. Paging fixes the allocation, and a paged kernel fixes the read.",
@@ -244,7 +244,7 @@ example:`<b>Worked example</b>An 8K prompt with f = 0.9 cached: the 8B prefills 
 diag:"hashchain",
 predict:["Part A: with a fraction f cached, is TTFT ∝ (1 − f), or does it flatten at high f? What is the floor?","At f = 0, what does hashing cost against a 0.26 s prefill?","Part B: what share of a turn's prompt is cached on a first turn vs later turns? Predict the hit rate (prefix ~3.5K, 6 turns, ~300 new tokens per turn).","Part B TTFT with caching off vs on, against the 1 s SLO.","What breaks this: eviction from a small pool, and preemption. Which state would D4's tiering keep?"],
 lab:{name:"S6 · Shared prefixes",why:"Measure how much prefill caching removes on agent and many-questions-one-document traffic, and what it costs when nothing is shared.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","20 requests of 8,000 tokens sharing the first f × 8,000; f = 0, 0.25, 0.5, 0.75, 0.9; 8 output tokens; first request cold"],["Part B","24 workload-C sessions, ~3.5K shared prefix, growing history, turns interleaved round-robin"],["Command","<code>python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","fp32 tokens identical with hits, sharing, eviction and resume; hash spec byte for byte; R3 with refcounts"]],
+spec:[["Smoke run",FIRST],["Official",OFFICIAL],["Part A","20 requests of 8,000 tokens sharing the first f × 8,000; f = 0, 0.25, 0.5, 0.75, 0.9; 8 output tokens; first request cold"],["Part B","24 workload-C sessions, ~3.5K shared prefix, growing history, turns interleaved round-robin"],["Command","<code>python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","fp32 tokens identical with hits, sharing, eviction and resume; hash spec byte for byte; R3 with refcounts"]],
 metrics:[["TTFT vs f","Against the ideal (1 − f) line"],["Hit rate","Cached ÷ prompt tokens"],["Prefilled tokens","Total off vs on"],["p99 TTFT per turn","Against the 1 s SLO"]],
 expected:"TTFT drops roughly in proportion to the cached fraction, flattening at high f; near-zero cost on unique prompts."},
 learn:"Agents and RAG are cache-friendly by construction; the hit rate decides their TTFT.",

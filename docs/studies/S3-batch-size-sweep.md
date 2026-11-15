@@ -3,7 +3,7 @@
 **Milestone:** M3 · **Compared against:** git tag `m2` (one request at a time) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (smoke run only on the L4)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload:
   - Part A: B = 1 → 64 requests of workload-B shape (100-token prompt) decoding together, equal lengths.

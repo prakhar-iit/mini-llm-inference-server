@@ -3,7 +3,7 @@
 **Milestone:** M5a (kernel part: M5b, M5c) · **Compared against:** git tag `m4` (contiguous slots) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (smoke run only on the L4)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload: 256 workload-B-shaped requests (100-token prompts, outputs uniform 16–1,000), all queued at once,
   in-process (no server), `max_model_len` 8,192.

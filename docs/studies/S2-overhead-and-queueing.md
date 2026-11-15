@@ -3,7 +3,7 @@
 **Milestone:** M2 · **Compared against:** git tag `m1` (S1, in-process engine) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (smoke run only on the L4)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload and load:
   - Part 1 (overhead): 100 sequential requests, 32-token prompt, 1 output token, idle server.

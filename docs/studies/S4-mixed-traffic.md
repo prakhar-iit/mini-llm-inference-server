@@ -3,7 +3,7 @@
 **Milestone:** M4 · **Compared against:** git tag `m3` (static batching) · **Date:**
 
 ## Setup
-- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (smoke run only on the L4)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload: Mix, 30% A (8,000 tokens in → 150 out, arXiv) and 70% B (~100 in → 1,000 out, UltraChat), open-loop
   Poisson arrivals at rising rates up to 2–3× M4's knee, ≥ 1,000 requests per rate, 30 s warm-up excluded.

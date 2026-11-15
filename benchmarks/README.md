@@ -25,8 +25,8 @@ It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
 | `g2_quality.py` | G2 quality gate (perplexity + GSM8K) with baseline save/check |
 
 ```bash
-python -m minillm.server --model-dir models/Llama-3.2-1B --timeline-log results/timeline.jsonl &
-python benchmarks/client.py --base-url http://127.0.0.1:8000 --workload b --tokenizer models/Llama-3.2-1B \
+python -m minillm.server --model-dir models/Llama-3.1-8B --timeline-log results/timeline.jsonl &
+python benchmarks/client.py --base-url http://127.0.0.1:8000 --workload b --tokenizer models/Llama-3.1-8B \
     --num 1200 --rate 2 --out results/b.jsonl
 ```
 

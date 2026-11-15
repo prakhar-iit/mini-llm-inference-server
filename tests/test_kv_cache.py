@@ -94,11 +94,11 @@ def test_cache_overflow_raises():
 
 
 @pytest.mark.slow
-def test_llama_32_1b_cached_matches_hf():
+def test_llama_8b_cached_matches_hf():
     """G0 for the cached path: our cached greedy vs HF's cached greedy, bf16 on the local device."""
     model_dir = real_model_dir()
     if model_dir is None:
-        pytest.skip("Llama-3.2-1B not downloaded (scripts/download_model.py)")
+        pytest.skip("Llama-3.1-8B not downloaded (scripts/download_model.py)")
     tok = AutoTokenizer.from_pretrained(model_dir)
     info = select_device("auto")
     prompts = [tok(p, return_tensors="pt").input_ids.to(info.device) for p in G0_PROMPTS]
@@ -111,6 +111,8 @@ def test_llama_32_1b_cached_matches_hf():
     gc.collect()
     if info.device.type == "mps":
         torch.mps.empty_cache()
+    elif info.device.type == "cuda":
+        torch.cuda.empty_cache()
 
     ours = load_model(model_dir, device=info.device, dtype=info.dtype)
     for ids, exp in zip(prompts, expected):

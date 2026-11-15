@@ -1,7 +1,7 @@
 """G0: our forward pass and greedy loop must match Hugging Face (batch 1, same device).
 
-Tiny random configs run in fp32 on CPU, everywhere, in a second. The Llama-3.2-1B test runs in bf16 on
-the best local device once the weights are in models/Llama-3.2-1B (scripts/download_model.py) or
+Tiny random configs run in fp32 on CPU, everywhere, in a second. The Llama-3.1-8B test runs in bf16 on
+the best local device once the weights are in models/Llama-3.1-8B (scripts/download_model.py) or
 MINILLM_MODEL_DIR.
 """
 
@@ -79,15 +79,15 @@ G0_PROMPTS = [
 
 
 @pytest.mark.slow
-def test_llama_32_1b_matches_hf():
+def test_llama_8b_matches_hf():
     model_dir = real_model_dir()
     if model_dir is None:
-        pytest.skip("Llama-3.2-1B not downloaded (scripts/download_model.py)")
+        pytest.skip("Llama-3.1-8B not downloaded (scripts/download_model.py)")
     tok = AutoTokenizer.from_pretrained(model_dir)
     info = select_device("auto")
     prompts = [tok(p, return_tensors="pt").input_ids.to(info.device) for p in G0_PROMPTS]
 
-    # bf16 (~2.5 GB per model) and one model in memory at a time: two fp32 copies don't fit in 8 GB.
+    # bf16 (~16 GB per model) and one model in memory at a time: two copies don't fit in the L4's 24 GB.
     # HF also runs without its KV cache, so both sides do the same full recompute each step; cached
     # and uncached attention round differently in bf16 and could legitimately pick different tokens.
     with torch.inference_mode():

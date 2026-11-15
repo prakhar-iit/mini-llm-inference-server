@@ -196,15 +196,16 @@ def test_metrics_count_tokens(server):
 
 
 @pytest.mark.slow
-def test_llama_32_1b_text_through_api():
+def test_llama_8b_text_through_api():
     """G0 through the API on the real model: text in, the server's tokens equal greedy_generate's."""
     model_dir = real_model_dir()
     if model_dir is None:
-        pytest.skip("Llama-3.2-1B not downloaded (scripts/download_model.py)")
+        pytest.skip("Llama-3.1-8B not downloaded (scripts/download_model.py)")
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(model_dir)
-    # Short prompts: 2,048 tokens per slot keeps the up-front KV reservation (decision 9) small on an 8 GB Mac.
+    # Short prompts: 2,048 tokens per slot keeps the up-front KV reservation (decision 9) small next to the 8B's
+    # 16 GB of weights on the L4's 24 GB.
     proc, base = start_server(model_dir, "auto", ["--max-model-len", "2048"])
     try:
         got = []

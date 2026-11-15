@@ -35,7 +35,7 @@ H100**. Live us-east-1 prices on 2026-11-14:
 
 | Experiments | GPU | Instance | Why |
 |---|---|---|---|
-| Development, `pytest`, smoke runs, first pass of every study | L4 | g6.xlarge | Cheapest instance that runs everything (bf16, FlashInfer, flash-attn). Numbers are labelled first-pass. The T4 (g4dn) is cheaper but has no bf16 and no flash-attn |
+| Development, `pytest`, smoke runs | L4 | g6.xlarge | Cheapest instance that runs everything (bf16, FlashInfer, flash-attn). No study numbers (amendment below). The T4 (g4dn) is cheaper but has no bf16 and no flash-attn |
 | Multi-GPU correctness: D1–D3, Moonlight K1–K5 code | 4× L4, PCIe | g6.12xlarge | Correctness only; no NVLink, so no performance numbers (this settles decision 16) |
 | **Phase 1 official: S0–S11** (8B, plus vLLM for S11) | **1× H100 80 GB** | **p5.4xlarge** | The cheapest official GPU; the whole chain on one card; has FP8, so S9a's prefill prediction can be tested |
 | **Phase 2: D1–D5** | **8× H100, NVLink** | **p5.48xlarge** | Same chip as Phase 1, so Phase 1's numbers are the TP=1 baseline; local NVMe for D4 |
@@ -57,6 +57,12 @@ brings its own reference run.
 - **Commands:** official study commands pass `--gpu h100`.
 - **S8 (CUDA graphs)** depends on the host CPU too. p5.4xlarge has 16 vCPUs; record the CPU model in the study
   note.
+
+## Amendment 2026-11-14: one model, the 8B
+Llama-3.2-1B is dropped as the development model; tests, smoke runs and every study use Llama-3.1-8B. On the L4
+the 8B leaves ~6 GB for KV and its ~54 ms decode floor is above the TPOT SLO, so the L4 is for tests and smoke
+runs only: **no first-pass study numbers**. Every study number, S0 included, comes from the H100. The 1B stays
+only as M10's draft model and S8's small model.
 
 ## Rejected
 - **A100 for Phase 1 (p4de):** $27.45/h for 8 GPUs when a study uses one, and no FP8 for S9a.

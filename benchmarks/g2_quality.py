@@ -1,9 +1,9 @@
 """G2 quality gate: WikiText-2 perplexity + GSM8K accuracy for our engine, against an HF baseline.
 
     # Record the Hugging Face baseline once per model (writes benchmarks/baselines/g2_<model>.json):
-    python benchmarks/g2_quality.py --model-dir models/Llama-3.2-1B --engine hf --save-baseline
+    python benchmarks/g2_quality.py --model-dir models/Llama-3.1-8B --engine hf --save-baseline
     # Score our engine and check it against the baseline (exit code 1 if the gate fails):
-    python benchmarks/g2_quality.py --model-dir models/Llama-3.2-1B --check
+    python benchmarks/g2_quality.py --model-dir models/Llama-3.1-8B --check
 
 Pass criterion: perplexity within 1% of the baseline, and GSM8K accuracy within two standard errors
 (binomial, at the baseline's accuracy and this run's question count). Quality numbers don't depend on

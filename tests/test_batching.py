@@ -131,7 +131,7 @@ def test_g1b_tiny_fp32_has_no_drift():
 
 
 @pytest.mark.slow
-def test_g1b_llama_32_1b_bf16():
+def test_g1b_llama_8b_bf16():
     """Batch 8 vs batch 1 in bf16 on the local device: our drift must be within 2× HF's own drift."""
     import gc
 
@@ -145,7 +145,7 @@ def test_g1b_llama_32_1b_bf16():
 
     model_dir = real_model_dir()
     if model_dir is None:
-        pytest.skip("Llama-3.2-1B not downloaded")
+        pytest.skip("Llama-3.1-8B not downloaded")
     tok = AutoTokenizer.from_pretrained(model_dir)
     info = select_device("auto")
     texts = G0_PROMPTS + ["Once upon a time", "import numpy as np\n", "Die Hauptstadt von Deutschland ist",
@@ -162,6 +162,8 @@ def test_g1b_llama_32_1b_bf16():
     gc.collect()
     if info.device.type == "mps":
         torch.mps.empty_cache()
+    elif info.device.type == "cuda":
+        torch.cuda.empty_cache()
 
     hf = HFLlama.from_pretrained(model_dir, dtype=info.dtype).to(info.device).eval()
 
