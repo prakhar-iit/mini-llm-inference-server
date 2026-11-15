@@ -277,7 +277,7 @@ ${["h1","h2","h3"].map((h,i)=>`<line x1="${90+i*110}" y1="98" x2="${110+i*110}" 
 <text x="552" y="54" class="s-mut">req A</text><text x="552" y="150" class="s-mut">req B</text>
 <text x="110" y="150" class="s-mut">h_i = SHA-256(h_(i−1) ‖ 16 token ids)</text><text x="110" y="62" class="s-ink">shared system prompt: computed once</text>
 </svg>`},
-stall:{cap:"Continuous batching, one decoding user's view. Each A prefill step pauses every running decode: one ITL gap of ~0.85 s. Averaged over 1,000 tokens it barely moves TPOT.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Prefill stall in continuous batching">
+stall:{cap:"Continuous batching, one decoding user's view. Each A prefill step pauses every running decode: one ITL gap of ~0.26 s. Averaged over 1,000 tokens it barely moves TPOT.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Prefill stall in continuous batching">
 <text x="20" y="24" class="t-lg s-ink">Engine steps (M4)</text>
 ${Array.from({length:6},(_,i)=>`<rect x="${20+i*24}" y="36" width="20" height="30" rx="2" class="s-m"/>`).join("")}
 <rect x="166" y="36" width="190" height="30" rx="2" class="s-c"/><text x="178" y="56" fill="#fff">A prefill, 8K tokens</text>
@@ -286,7 +286,7 @@ ${Array.from({length:10},(_,i)=>`<rect x="${362+i*24}" y="36" width="20" height=
 ${Array.from({length:6},(_,i)=>`<circle cx="${30+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
 ${Array.from({length:10},(_,i)=>`<circle cx="${372+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
 <line x1="150" y1="140" x2="372" y2="140" class="s-cst" stroke-width="2"/><line x1="150" y1="134" x2="150" y2="146" class="s-cst" stroke-width="2"/><line x1="372" y1="134" x2="372" y2="146" class="s-cst" stroke-width="2"/>
-<text x="190" y="160" class="s-c">one ITL gap ≈ 0.85 s</text>
+<text x="190" y="160" class="s-c">one ITL gap ≈ 0.26 s</text>
 <text x="20" y="188" class="s-mut">ITL p99 sees the gap · TPOT = total decode time ÷ tokens averages it away</text>
 </svg>`},
 chunked:{cap:"Without chunking, one 8K prefill step stalls every decoding user. With a token budget, the prefill is cut into chunks that share steps with decodes.",svg:`<svg viewBox="0 0 640 210" role="img" aria-label="Chunked prefill timeline">
@@ -342,7 +342,7 @@ ${[[0,2],[0,3],[1,0],[1,3],[2,1],[2,2],[3,0],[3,1]].map(([a,b])=>`<line x1="140"
 </svg>`}
 };
 const FIRST = "g6.xlarge (1× L4 24 GB), Llama-3.2-1B, bf16";
-const OFFICIAL = "p4de (A100 80 GB) or p5 (H100), Llama-3.1-8B, bf16";
+const OFFICIAL = "p5.4xlarge (1× H100 80 GB), Llama-3.1-8B, bf16";
 
 const UNITS = [
 {id:"0",key:"unit-0",title:"Orientation",short:"How the course works",
@@ -350,28 +350,28 @@ const UNITS = [
  outcome:"You can read any later module and know what it is testing, on which instance, against which baseline."},
 {id:"1a",key:"unit-1a",title:"Core engine → v1",short:"M0–M6 on one GPU",
  goal:"Build a working LLM server from a bare generation loop up to paged KV and prefix caching, and measure what each step buys.",
- outcome:"Tag v1: gates G0–G2 and R1–R4 green, S0–S6 measured on A100/H100, README charts and one write-up. Inference-platform applications open here.",
- facts:[["Milestones","M0 → M6, all built and tagged m0–m6"],["Studies","S0–S6, scripts written, pending EC2 runs"],["Hardware","L4 first pass, A100/H100 official"],["Model","Llama-3.2-1B dev, Llama-3.1-8B studies"]]},
+ outcome:"Tag v1: gates G0–G2 and R1–R4 green, S0–S6 measured on one H100, README charts and one write-up. Inference-platform applications open here.",
+ facts:[["Milestones","M0 → M6, all built and tagged m0–m6"],["Studies","S0–S6, scripts written, pending EC2 runs"],["Hardware","L4 first pass, H100 (p5.4xlarge) official"],["Model","Llama-3.2-1B dev, Llama-3.1-8B studies"]]},
 {id:"1b",key:"unit-1b",title:"Optimizations → v1.1",short:"M7–M10 + vs vLLM",
  goal:"Add the four optimizations production engines ship with, each as its own measured study, then compare the whole engine with vLLM.",
- outcome:"Tag v1.1: S0–S10 rerun on A100/H100, R4 soak rerun, and an honest gap analysis against vLLM (S11).",
- facts:[["Milestones","M7 chunked prefill, M8 CUDA graphs, M9 quantization, M10 speculative decoding"],["Hard gates","G2 for M9, exact G0 for M10"],["Hardware","A100/H100"],["Status","Planned"]]},
+ outcome:"Tag v1.1: S0–S10 rerun on the H100, R4 soak rerun, and an honest gap analysis against vLLM (S11).",
+ facts:[["Milestones","M7 chunked prefill, M8 CUDA graphs, M9 quantization, M10 speculative decoding"],["Hard gates","G2 for M9, exact G0 for M10"],["Hardware","H100 (p5.4xlarge)"],["Status","Planned"]]},
 {id:"2",key:"unit-2",title:"Distributed, one node",short:"TP, router, P/D, tiers",
  goal:"Take the engine across the GPUs of one 8-GPU node: split a model, route between replicas, separate prefill from decode, and tier the KV cache.",
  outcome:"Measured answers to when each multi-GPU technique pays, on the agent workload, with every run matching TP=1 output (G1).",
- facts:[["Builds","D1 TP, D1b PP (optional), D2 router, D3 P/D, D4 KV tiering, D5 reliability"],["Dev hardware","g6.12xlarge (4× L4) for correctness"],["Perf hardware","p4/p5 (NVLink)"],["Status","Planned"]]},
+ facts:[["Builds","D1 TP, D1b PP (optional), D2 router, D3 P/D, D4 KV tiering, D5 reliability"],["Dev hardware","g6.12xlarge (4× L4) for correctness"],["Perf hardware","p5.48xlarge (8× H100, NVLink)"],["Status","Planned"]]},
 {id:"3",key:"unit-3",title:"Multi-node and cluster caching",short:"EFA, N1–N4, P1–P4",
  goal:"Cross the node boundary, where bandwidth drops by about 10×, and build prompt caching that works across the cluster.",
  outcome:"The TP-inside / replicas-across rule confirmed or broken with numbers, a measured fetch-vs-recompute crossover, and a cluster KV cache with agent prefetch.",
- facts:[["Model","Llama-3.3-70B"],["Hardware","2× cheap GPU nodes (N1), then 2× p4d/p5 over EFA"],["Cache layers","engine → node tiers → cluster → product"],["Status","Planned"]]},
+ facts:[["Model","Llama-3.3-70B"],["Hardware","2× cheap GPU nodes (N1), then 2× p5.48xlarge over EFA"],["Cache layers","engine → node tiers → cluster → product"],["Status","Planned"]]},
 {id:"4",key:"unit-4",title:"Production stacks",short:"llm-d / Dynamo, cost",
  goal:"Check the home-built system against production tooling and real prices.",
  outcome:"A gap analysis against vLLM + llm-d or Dynamo on EKS, and cost per 1,000 papers self-hosted vs Bedrock, with the break-even utilisation.",
- facts:[["Stack","EKS, vLLM, llm-d or NVIDIA Dynamo"],["Cost study","p4/p5 + vLLM vs Bedrock real-time vs batch"],["Optional","Trainium/Inferentia via Neuron"],["Status","Planned"]]},
+ facts:[["Stack","EKS, vLLM, llm-d or NVIDIA Dynamo"],["Cost study","p5.48xlarge + vLLM vs Bedrock real-time vs batch"],["Optional","Trainium/Inferentia via Neuron"],["Status","Planned"]]},
 {id:"5",key:"unit-5",title:"Kimi K2 capstone",short:"MLA, MoE, EP",
  goal:"Serve a 1T-parameter MoE model (32B active) on the same engine across 1–2 nodes: a small version of LMSYS's 128-GPU deployment.",
  outcome:"Kimi K2 decode throughput on your engine and a gap analysis against SGLang/vLLM on the same hardware.",
- facts:[["Dev model","Moonlight-16B-A3B (same architecture)"],["Target","Kimi K2.x INT4, ~594 GB"],["Hardware","1× p5en or 2× p5"],["Status","Planned"]]},
+ facts:[["Dev model","Moonlight-16B-A3B (same architecture)"],["Target","Kimi K2.x INT4, ~594 GB"],["Hardware","1× p5en (2× p5 only for cross-node EP)"],["Status","Planned"]]},
 {id:"A",key:"unit-appendix",title:"Reference",short:"Formulas, GPUs, decisions",
  goal:"Everything you reach for while predicting: formulas, hardware numbers, the decision log, the glossary.",outcome:""}
 ];
@@ -390,11 +390,13 @@ const ORIENTATION = `
 </ol></div>
 <div class="sec"><h2>Hardware: EC2 only</h2>
 <p>Every run, including first-pass checks, happens on EC2. Scripts are ready before an instance starts, and each session runs a batch of studies.</p>
+<p><b>One measurement GPU per chain of studies</b> (decision 25). Bandwidth sets decode time and compute sets prefill time, so a GPU change moves every number. Each chain (S0→S11, then Phases 2–4) stays on one chip, the H100. When the GPU must change, remeasure the baseline on the new one and report MBU and MFU next to the milliseconds; those carry across GPUs.</p>
 <div class="tbl"><table><thead><tr><th>Tier</th><th>Instance</th><th>Used for</th></tr></thead><tbody>
 <tr><td>First pass</td><td>g6.xlarge (1× L4 24 GB)</td><td>CUDA path, kernel integration, study dry runs on Llama-3.2-1B</td></tr>
 <tr><td>Multi-GPU correctness</td><td>g6.12xlarge (4× L4, PCIe)</td><td>D1–D3 correctness, Moonlight-16B (Phase 5)</td></tr>
-<tr><td>Official numbers</td><td>p4d / p4de (A100), p5 (H100)</td><td>S0–S10 reruns, Phase 2 performance, Phase 3 multi-node</td></tr>
-<tr><td>Capstone</td><td>p5en (8× H200) or 2× p5</td><td>Kimi K2 (K0, K6)</td></tr>
+<tr><td>Phase 1 official</td><td>p5.4xlarge (1× H100 80 GB), $6.88/h</td><td>S0–S11 on Llama-3.1-8B</td></tr>
+<tr><td>Phases 2–4</td><td>p5.48xlarge (8× H100, NVLink, EFA)</td><td>D1–D5, N2–N4 and P1–P3 (2 nodes), EKS and the cost study</td></tr>
+<tr><td>Capstone</td><td>p5en (8× H200)</td><td>Kimi K2 (K0, K6, K7); 2× p5 only for cross-node EP</td></tr>
 </tbody></table></div></div>
 <div class="sec"><h2>Models</h2>
 <div class="tbl"><table><thead><tr><th>Model</th><th>Role</th><th>KV per token</th></tr></thead><tbody>
@@ -463,11 +465,11 @@ formula:`KV bytes/token = 2 × layers × kv_heads × head_dim × bytes
   8B: 2 × 32 × 8 × 128 × 2 = 128 KB
 decode floor (batch 1) = weight bytes ÷ bandwidth
 MFU = achieved FLOP/s ÷ peak     MBU = (weights + KV read) / step ÷ peak BW`,
-example:`<b>Worked example</b>8B on an A100 80 GB: 16 GB of weights ÷ 2.04 TB/s = <b>7.9 ms</b> per decode token at best. That step does 16 GFLOPs, i.e. 2 TFLOP/s, so decode MFU ≈ 0.7%. An 8K prefill needs 2 × 8×10⁹ × 8,192 ≈ 1.3×10¹⁴ FLOPs: ~0.85 s at 50% MFU. At context 2,000 the KV read adds 256 MB to the 16 GB of weights: about +1.6% on ITL.`,
+example:`<b>Worked example</b>8B on an H100: 16 GB of weights ÷ 3.35 TB/s = <b>4.8 ms</b> per decode token at best. That step does 16 GFLOPs, i.e. 3.3 TFLOP/s, so decode MFU ≈ 0.3%. An 8K prefill needs 2 × 8×10⁹ × 8,192 ≈ 1.3×10¹⁴ FLOPs: ~0.26 s at 50% MFU. At context 2,000 the KV read adds 256 MB to the 16 GB of weights: about +1.6% on ITL.`,
 diag:"roofline",
 predict:["Decode floor for the 8B on your GPU. Will measured ITL land near it? What MBU do you expect, and why not 100%?","TTFT at 128 vs 4,096 tokens: linear in prompt length? Past roughly what length does the n² attention term make it grow faster?","Prefill MFU at 4K tokens vs decode MFU. Why are they orders of magnitude apart?","Does ITL rise as context grows from 128 to 2,000 tokens? By how much?","Versus S0 (tag m0): per-token time at context 2,048 without and with the cache."],
 lab:{name:"S1 · Prefill vs decode",why:"Show that the two phases are different problems, with numbers you will reuse in every later prediction.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random ids. Sweep A: prompt 128 → 16,384, 16 out. Sweep B: 128 in, 2,000 out. Then workloads A and B."],["Command","<code>python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","G0; G2 baseline recorded with <code>benchmarks/g2_quality.py --engine hf --save-baseline</code>"]],
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random ids. Sweep A: prompt 128 → 16,384, 16 out. Sweep B: 128 in, 2,000 out. Then workloads A and B."],["Command","<code>python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G0; G2 baseline recorded with <code>benchmarks/g2_quality.py --engine hf --save-baseline</code>"]],
 metrics:[["TTFT vs prompt length","Linear, then superlinear where attention n² grows"],["ITL vs context","Flat near the decode floor, slow rise from KV reads"],["Prefill MFU","Expected 40–60%"],["Decode MBU / MFU","Expected MBU 70–85%, MFU under 1%"],["Phase share of A and B","A ≈ 30–40% prefill; B ≈ 99% decode"]],
 expected:"TTFT linear in prompt length, superlinear past ~8K. ITL flat near the decode floor. Prefill MFU 40–60%; decode MBU 70–85% with MFU below 1%."},
 learn:"Prefill is compute-bound and decode is memory-bound. A single request leaves most of the GPU's arithmetic idle during decode.",
@@ -513,7 +515,7 @@ example:`<b>Worked example</b>8B, B = 32 at context 600: KV read = 32 × 600 × 
 diag:"batching",
 predict:["Decode step time at B = 1 and B = 32: how much slower, and why?","At what B does arithmetic intensity reach your GPU's balance point? Is that inside the 1–64 sweep?","Throughput at B = 64 vs B = 1: ideal is 64×. What do you expect, and what limits it inside the sweep (KV reads, attention, Python per-step overhead)?","Lengths uniform 16–512 in batches of 16: what fraction of decode rows is wasted? How long do queued requests wait?","Which of these costs does continuous batching remove, and which remain?"],
 lab:{name:"S3 · Batch-size sweep",why:"Measure what batching recovers from S2's idle GPU, and what static batching still wastes.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","B = 1 → 64 workload-B requests decoding together, equal lengths"],["Part B","128 requests, outputs uniform 16–512, queued at once, static batches of 16"],["Command","<code>python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","G1a fp32 exact; G1b bf16 within 2× HF batch noise"]],
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","B = 1 → 64 workload-B requests decoding together, equal lengths"],["Part B","128 requests, outputs uniform 16–512, queued at once, static batches of 16"],["Command","<code>python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","G1a fp32 exact; G1b bf16 within 2× HF batch noise"]],
 metrics:[["Step time vs B","Nearly flat while memory-bound"],["Tokens/s vs B","Near-linear, then the knee"],["Wasted rows","Share of decode rows on finished requests"],["Queue wait","How long later batches wait"]],
 expected:"Throughput near-linear in B while memory-bound, ITL nearly flat. The roofline knee lies past B = 64 on A100, H100 and L4, so any flattening inside the sweep comes from KV reads and overhead. On mixed lengths, short requests wait for the longest."},
 learn:"Batching uses the compute decode leaves idle. Static batching gives some of it back to padding and head-of-line blocking.",
@@ -529,12 +531,12 @@ M({unit:"1a",id:"m5",n:5,title:"Continuous batching and scheduling",tags:["M4","
 obj:["Describe iteration-level scheduling","Predict the goodput gain on mixed-length traffic","Identify the prefill stall it introduces"],
 lesson:`<p><b>Continuous batching</b> (Orca's idea) makes the batch decision again at every step. A finished request leaves immediately; a waiting one joins the next step. Slots are busy only for their own request's lifetime, so the wasted rows and head-of-line blocking of static batching mostly disappear.</p>
 <p>The scheduler now has policy choices. <b>Admission</b> is first-come-first-served with no skipping, so a long prompt can't be starved. A <b>token budget</b> caps how many prompt tokens one prefill step computes. <b>Backpressure</b> bounds in-flight requests and rejects the rest with 503, so overload degrades into rejections rather than out-of-memory crashes.</p>
-<p>It creates a new problem. Each prefill step pauses every running decode. When an 8K prompt arrives, all decoding users wait ~0.85 s for their next token. Two metrics see this differently. <b>ITL</b> is each gap between tokens, so the stall shows up directly in its tail. <b>TPOT</b> is a request's decode time divided by its tokens, so a few long gaps are averaged away. A request can meet the 50 ms TPOT target while its p99 ITL is many times worse. Chunked prefill (M7) is the fix.</p>`,
+<p>It creates a new problem. Each prefill step pauses every running decode. When an 8K prompt arrives, all decoding users wait ~0.26 s for their next token. Two metrics see this differently. <b>ITL</b> is each gap between tokens, so the stall shows up directly in its tail. <b>TPOT</b> is a request's decode time divided by its tokens, so a few long gaps are averaged away. A request can meet the 50 ms TPOT target while its p99 ITL is many times worse. Chunked prefill (M7) is the fix.</p>`,
 formula:`M3 batch time     = time of its longest member
 M4 slot busy time = its own request only
-decode stall per A admission ≈ one 8K prefill ≈ 0.85 s (A100, 8B)
+decode stall per A admission ≈ one 8K prefill ≈ 0.26 s (H100, 8B)
 TPOT = decode time ÷ output tokens      ITL = each gap between tokens`,
-example:`<b>Worked example</b>Mix at 0.67 req/s total, so A arrives at 0.2/s and prefill occupies the GPU ~17% of the time. A B request decodes 1,000 tokens over ~10 s and sees about 2 A prefills. Its TPOT rises by only 2 × 0.85 s ÷ 1,000 ≈ 1.7 ms, which still meets 50 ms. But 2 of its 1,000 gaps last ~850 ms, and across all B requests that tail decides p99 ITL as A's rate rises.`,
+example:`<b>Worked example</b>Mix at 0.67 req/s total, so A arrives at 0.2/s and prefill occupies the GPU ~5% of the time. A B request decodes 1,000 tokens over ~6 s (~6 ms a step) and sees about 1 A prefill. Its TPOT rises by only ~0.26 s ÷ 1,000 ≈ 0.3 ms, which still meets 50 ms. But one or two of its 1,000 gaps last ~260 ms, five times the target, and across all B requests that tail decides p99 ITL as A's rate rises.`,
 diag:"stall",
 predict:["Service time of an A request and a B request; each engine's capacity in req/s on the 30/70 mix with batch 16.","Goodput at M3's knee vs M4's knee. Where does the factor come from?","p99 TTFT for B below the knee: M3 waits for a whole batch, M4 for one slot. Numbers for both.","How many A prefills does a B request see at A rate λ? What happens to its TPOT, and what happens to p99 ITL across all B gaps?","R2 at 2–3× the knee: is 64 waiting small enough that admitted requests still meet TTFT?"],
 lab:{name:"S4 · Mixed traffic",why:"Measure goodput from iteration-level scheduling on the traffic that hurts static batching most, and expose the prefill stall.",
@@ -562,7 +564,7 @@ example:`<b>Worked example</b>8 GiB budget, 8B (128 KB/token), max_model_len 8,1
 diag:"paged",
 predict:["Part A: how many contiguous slots fit in 8 GiB at 8,192? What fraction of each holds real tokens? How many fit paged?","Block fill: what share of held block slots hold real tokens for ~600-token requests?","How much faster is decode with several× more requests running, given S3's batch curve? Where does it stop helping?","Part B: at which pool size do preemptions start? What does each cost? Why is the cliff sharp?","Part C: bytes the reference copies at 4,096 tokens × batch 32 vs the weights read. How close should FlashInfer and flash-attn get to contiguous?"],
 lab:{name:"S5 · KV pressure",why:"Show that memory caps decode throughput, and that a paged kernel removes the cost of reading through a block table.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","256 workload-B requests (100 in, outputs 16–1,000), in-process, max_model_len 8,192"],["Parts","A: 8 GiB, contiguous vs paged. B: pool at 1, ½, ¼, ⅛, 1/16. C: decode step at batch 1/8/32 × ctx 512/4,096 for slots, reference, FlashInfer, flash-attn"],["Command","<code>python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu a100-80 --backends torch_ref,flashinfer,flash_attn</code>"],["Gates","G0/G1a on paged KV incl. preempted requests; R3 after every run; each kernel vs reference within G1b"]],
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","256 workload-B requests (100 in, outputs 16–1,000), in-process, max_model_len 8,192"],["Parts","A: 8 GiB, contiguous vs paged. B: pool at 1, ½, ¼, ⅛, 1/16. C: decode step at batch 1/8/32 × ctx 512/4,096 for slots, reference, FlashInfer, flash-attn"],["Command","<code>python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu h100 --backends torch_ref,flashinfer,flash_attn</code>"],["Gates","G0/G1a on paged KV incl. preempted requests; R3 after every run; each kernel vs reference within G1b"]],
 metrics:[["Concurrent requests","Average and max running"],["Block fill","Share of held slots with real tokens"],["Tokens/s","Paged vs contiguous"],["Preemptions + recomputed tokens","Where the cliff starts"],["Decode step time per backend","Reference vs FlashInfer vs flash-attn vs slots"]],
 expected:"Paged waste under ~5%, several× concurrency. Preemption shows as TTFT/ITL cliffs. The reference falls behind with context; FlashInfer within ~10% of contiguous; the two kernels within 10–20% of each other."},
 learn:"KV memory caps concurrency. Paging fixes the allocation, and a paged kernel fixes the read.",
@@ -583,9 +585,9 @@ TTFT(f) ≈ (1 − f) × prefill + attention over cached context + fixed overhea
 hit rate = cached prompt tokens ÷ prompt tokens`,
 example:`<b>Worked example</b>An 8K prompt with f = 0.9 cached: the 8B prefills ~800 tokens instead of 8,192. Ideal speed-up is 10×; expect less because attention for those 800 tokens still reads 8K of context. Hashing 512 blocks costs tens of microseconds against a 0.85 s prefill.`,
 diag:"hashchain",
-predict:["Part A: with a fraction f cached, is TTFT ∝ (1 − f), or does it flatten at high f? What is the floor?","At f = 0, what does hashing cost against a 0.85 s prefill?","Part B: what share of a turn's prompt is cached on a first turn vs later turns? Predict the hit rate (prefix ~3.5K, 6 turns, ~300 new tokens per turn).","Part B TTFT with caching off vs on, against the 1 s SLO.","What breaks this: eviction from a small pool, and preemption. Which state would D4's tiering keep?"],
+predict:["Part A: with a fraction f cached, is TTFT ∝ (1 − f), or does it flatten at high f? What is the floor?","At f = 0, what does hashing cost against a 0.26 s prefill?","Part B: what share of a turn's prompt is cached on a first turn vs later turns? Predict the hit rate (prefix ~3.5K, 6 turns, ~300 new tokens per turn).","Part B TTFT with caching off vs on, against the 1 s SLO.","What breaks this: eviction from a small pool, and preemption. Which state would D4's tiering keep?"],
 lab:{name:"S6 · Shared prefixes",why:"Measure how much prefill caching removes on agent and many-questions-one-document traffic, and what it costs when nothing is shared.",
-spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","20 requests of 8,000 tokens sharing the first f × 8,000; f = 0, 0.25, 0.5, 0.75, 0.9; 8 output tokens; first request cold"],["Part B","24 workload-C sessions, ~3.5K shared prefix, growing history, turns interleaved round-robin"],["Command","<code>python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","fp32 tokens identical with hits, sharing, eviction and resume; hash spec byte for byte; R3 with refcounts"]],
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","20 requests of 8,000 tokens sharing the first f × 8,000; f = 0, 0.25, 0.5, 0.75, 0.9; 8 output tokens; first request cold"],["Part B","24 workload-C sessions, ~3.5K shared prefix, growing history, turns interleaved round-robin"],["Command","<code>python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu h100</code>"],["Gates","fp32 tokens identical with hits, sharing, eviction and resume; hash spec byte for byte; R3 with refcounts"]],
 metrics:[["TTFT vs f","Against the ideal (1 − f) line"],["Hit rate","Cached ÷ prompt tokens"],["Prefilled tokens","Total off vs on"],["p99 TTFT per turn","Against the 1 s SLO"]],
 expected:"TTFT drops roughly in proportion to the cached fraction, flattening at high f; near-zero cost on unique prompts."},
 learn:"Agents and RAG are cache-friendly by construction; the hit rate decides their TTFT.",
@@ -594,8 +596,8 @@ check:["Why is the last prompt token always recomputed?","Why must the hash be s
 
 M({unit:"1a",id:"m8",n:8,title:"Ship v1",tags:["R4","v1"],status:"planned",measured:"pending. The R4 soak script and the scripted EC2 session in scripts/aws/ still need writing.",
 obj:["List the release gate","Plan the one EC2 session that produces all v1 numbers","Know what goes in the write-up"],
-lesson:`<p>v1 is done when every gate and robustness test passes, the <b>R4 soak</b> holds steady for 1–2 hours, and S0–S6 are measured on A100/H100 in one scripted session.</p>
-<p><b>The EC2 session.</b> One g6.xlarge run (~2–3 hours) tests all CUDA-only code at once: M5b and M5c against the reference under G1b, then S5 part C. Then one A100/H100 session runs S0–S6 from their milestone tags and records the G2 baseline. Every script is ready before the instance starts.</p>
+lesson:`<p>v1 is done when every gate and robustness test passes, the <b>R4 soak</b> holds steady for 1–2 hours, and S0–S6 are measured on one H100 (p5.4xlarge) in one scripted session.</p>
+<p><b>The EC2 session.</b> One g6.xlarge run (~2–3 hours) tests all CUDA-only code at once: M5b and M5c against the reference under G1b, then S5 part C. Then one p5.4xlarge session runs S0–S6 from their milestone tags and records the G2 baseline. Every script is ready before the instance starts.</p>
 <p><b>Deliverables.</b> Tag <code>v1</code>, a README with the S0–S6 charts, and one public write-up. Applications for inference-platform roles open here.</p>`,
 formula:`v1 gate = G0 ∧ G1a ∧ G1b ∧ G2 ∧ R1 ∧ R2 ∧ R3 ∧ R4 ∧ S0–S6 measured`,
 example:`<b>R4 pass criteria</b>Steady Mix + C load for 1–2 h: no memory growth, no block leaks, p99 TTFT and ITL drift under 10% between the first and last 10 minutes.`,
@@ -607,11 +609,15 @@ expected:"All green; README charts and write-up published; tag v1."},
 learn:"A release is a set of passed gates plus measured, explained numbers.",
 next:"Unit 1b: chunked prefill, CUDA graphs, quantization, speculative decoding.",
 check:["Which tests rerun at every later milestone?"]});
+D({unit:"0",n:"25",title:"Measurement hardware per experiment",status:"decided",
+choice:"One measurement GPU per chain of studies. L4 (g6.xlarge, $0.80/h) for development and first pass; g6.12xlarge (4× L4) for multi-GPU correctness; 1× H100 (p5.4xlarge, $6.88/h) for Phase 1 official S0–S11; 8× H100 (p5.48xlarge) for Phases 2–4; p5en (8× H200) for Kimi K2. When the GPU changes, remeasure the baseline and report MBU/MFU next to the milliseconds.",
+why:"Bandwidth sets decode time and compute sets prefill time, so a GPU change moves every number. Keeping one chip, the H100, from Phase 1 to Phase 4 means each gain comes from the code. The single-H100 p5.4xlarge is the cheapest official GPU and has FP8 for S9a."});
+
 D({unit:"0",n:"20 (partial), 21",title:"Budget and AWS access before the first instance",status:"open",
 choice:"Set a dollar cap per phase with an AWS Budgets alarm for each. Check the G-instance vCPU quota (g6 is needed first) and confirm the AWS account is personal. P-instance quota, Capacity Blocks and EFA wait until Phase 3.",
 why:"Every lab runs on EC2, so an unbounded bill is the main project risk. A quota of 0 blocks the first lab."});
 
-const PLAN8 = "p4de (A100 80 GB) or p5 (H100)";
+const PLAN8 = "p5.4xlarge (1× H100 80 GB)";
 
 /* ---------------- Unit 1b ---------------- */
 M({unit:"1b",id:"m9",n:9,title:"Chunked prefill",tags:["M7","S7",["compute","c"]],status:"planned",
@@ -639,8 +645,8 @@ lesson:`<p>Each decode step launches hundreds of small GPU kernels from Python. 
 <p>The gain depends on the ratio of launch overhead to GPU time. Small models at small batch on fast GPUs gain most; a big model at big batch barely notices.</p>`,
 formula:`step ≈ max(GPU work, kernels × launch cost) without graphs
 launch overhead ≈ layers × kernels/layer × ~5–10 µs`,
-example:`<b>Worked example</b>Llama-3.2-1B: 16 layers × ~12 kernels × ~7 µs ≈ 1.3 ms of launches, against a 1.2 ms decode floor on an A100 80 GB. Graphs could nearly halve the step. The 8B's 7.9 ms floor makes the same overhead a much smaller share.`,
-predict:["Decode step time for the 1B at batch 1 with and without graphs on A100/H100.","At what batch size does the 8B stop gaining?","What will the gaps between kernels look like in Nsight Systems before and after?"],
+example:`<b>Worked example</b>Llama-3.2-1B: 16 layers × ~12 kernels × ~7 µs ≈ 1.3 ms of launches, against a ~0.7 ms decode floor on the H100. Launches dominate, so graphs could cut the step by more than half. The 8B's ~4.8 ms floor makes the same overhead a much smaller share.`,
+predict:["Decode step time for the 1B at batch 1 with and without graphs on the H100.","At what batch size does the 8B stop gaining?","What will the gaps between kernels look like in Nsight Systems before and after?"],
 lab:{name:"S8 · CPU launch overhead",why:"Learn to see when the GPU waits on Python, and how much one launch per step recovers.",
 spec:[["Instance",PLAN8],["Models","Llama-3.2-1B and Llama-3.1-8B, bf16"],["Workload","Decode step time at batch 1–32"],["Profile","PyTorch profiler and Nsight Systems"],["Gates","G0 identical with graphs on"]],
 metrics:[["Decode step time","Graphs on vs off, per batch"],["GPU idle gaps","Between kernels in the timeline"],["Speed-up by model","1B vs 8B"]],
@@ -657,7 +663,7 @@ lesson:`<p>Decode is bound by bytes read. Store weights in 8 bits instead of 16 
 formula:`decode floor ∝ weight bytes:  8B bf16 16 GB → fp8 8 GB
 KV/token: 8B bf16 128 KB → fp8 64 KB  (2× tokens per GiB)`,
 example:`<b>Worked example</b>8B on an A100 80 GB: the decode floor drops from 7.9 ms to ~3.9 ms with 8-bit weights. In an 8 GiB KV budget, fp8 KV holds ~131K tokens instead of ~65K.`,
-predict:["S9a: ITL at batch 1 with 8-bit weights, and the change in G2 scores.","Will prefill get faster on A100? On H100? Why the difference?","S9b: max concurrency and long-context ITL with fp8 KV."],
+predict:["S9a: ITL at batch 1 with 8-bit weights, and the change in G2 scores.","Will prefill get faster on the H100? Would it on an A100, which has no FP8 tensor cores?","S9b: max concurrency and long-context ITL with fp8 KV."],
 lab:{name:"S9a/S9b · Quantization",why:"Show that bytes moved are the decode cost, and that precision is a capacity lever, without losing quality.",
 spec:[["Instance",PLAN8+"; L4 for an FP8 tensor-core comparison"],["Model","Llama-3.1-8B: bf16 vs weight-only 8-bit/FP8 (borrowed kernel), bf16 KV vs fp8 KV"],["Workload","S9a: batch 1 ITL + G2. S9b: S5's sweep and long-context ITL"],["Gates","G2 within noise of the HF bf16 baseline (hard gate)"]],
 metrics:[["ITL at batch 1","Against the byte ratio"],["Perplexity, GSM8K","G2 delta"],["Max concurrency","fp8 vs bf16 KV"],["Prefill time","A100 vs H100"]],
@@ -688,7 +694,7 @@ M({unit:"1b",id:"m13",n:13,title:"Own engine vs vLLM, ship v1.1",tags:["S11","R4
 obj:["Run a fair comparison","Explain a performance gap from profiles"],
 lesson:`<p>The last study puts your engine and vLLM side by side on A, B, C and Mix with the same settings and the same benchmark client, so the metric definitions can't differ.</p>
 <p>The goal is an honest <b>gap analysis</b>, not a close number. Expect gaps from kernels (fused ops, attention variants), scheduler details, and CPU overhead. Each one should be named and sized from a profile.</p>
-<p>Then the v1.1 release gate: all gates green, the R4 soak rerun, and S0–S10 rerun on A100/H100.</p>`,
+<p>Then the v1.1 release gate: all gates green, the R4 soak rerun, and S0–S10 rerun on the H100.</p>`,
 formula:`gap = vLLM goodput ÷ own goodput, per workload, explained term by term`,
 predict:["On which workload will the gap be largest, and why?","Which single cause do you expect to dominate the gap?"],
 lab:{name:"S11 · vs vLLM + v1.1",why:"Ground your engine against the production reference, then freeze v1.1.",
@@ -700,8 +706,8 @@ next:"Unit 2: take the engine across GPUs.",
 check:["Why does using the same client for both engines matter?"]});
 
 /* ---------------- Unit 2 ---------------- */
-D({unit:"2",n:"16",title:"Multi-GPU dev hardware",status:"open",
-choice:"Options: develop on p4/p5, or on a cheap multi-GPU box. Recommendation: g6.12xlarge (4× L4, PCIe) for D1–D3 correctness; performance numbers only on p4/p5 (NVLink).",why:"Needed before D1."});
+D({unit:"2",n:"16",title:"Multi-GPU dev hardware",status:"decided",
+choice:"g6.12xlarge (4× L4, PCIe) for D1–D3 correctness; performance numbers only on the p5.48xlarge (8× H100, NVLink). Settled by decision 25.",why:"Develop multi-GPU code cheaply; PCIe without NVLink gives the wrong all-reduce cost, so it never produces performance numbers."});
 
 M({unit:"2",id:"m14",n:14,title:"Tensor parallelism",tags:["D1","G1"],status:"planned",
 obj:["Split attention and MLP across GPUs","Count the all-reduces per layer","Explain why TP buys latency, not efficiency"],
@@ -710,11 +716,11 @@ lesson:`<p><b>Tensor parallelism</b> (Megatron-LM) splits each layer's weight ma
 formula:`per-GPU weight read = weights ÷ TP
 all-reduces per step = 2 × layers
 all-reduce bytes ≈ 2 × hidden × batch × 2 bytes × (TP−1)/TP`,
-example:`<b>Worked example</b>8B at TP=4 on NVLink: each GPU reads 4 GB, so the floor falls from 7.9 to ~2 ms on A100, but 64 all-reduces per step at ~10–20 µs each add ~1 ms. On PCIe L4s the all-reduce share is far larger.`,
+example:`<b>Worked example</b>8B at TP=4 on NVLink: each GPU reads 4 GB, so the floor falls from 4.8 to ~1.2 ms on the H100, but 64 all-reduces per step at ~10–20 µs each add ~1 ms, nearly as much as it saved. On PCIe L4s the all-reduce share is far larger.`,
 diag:"tp",
-predict:["Decode latency at TP=1/2/4 on p4d.","Share of step time in all-reduce at TP=4, NVLink vs PCIe.","Per-GPU throughput at TP=4 relative to TP=1."],
+predict:["Decode latency at TP=1/2/4 on the p5.48xlarge.","Share of step time in all-reduce at TP=4, NVLink vs PCIe.","Per-GPU throughput at TP=4 relative to TP=1."],
 lab:{name:"D1 · TP scaling",why:"Learn what splitting a model buys and costs before using it at scale.",
-spec:[["Correctness","g6.12xlarge (4× L4), NCCL"],["Performance","p4d / p5 (NVLink)"],["Model","Llama-3.1-8B"],["Gates","G1b vs TP=1"]],
+spec:[["Correctness","g6.12xlarge (4× L4), NCCL"],["Performance","p5.48xlarge (8× H100, NVLink)"],["Model","Llama-3.1-8B"],["Gates","G1b vs TP=1"]],
 metrics:[["Latency vs TP",""],["Per-GPU throughput vs TP",""],["All-reduce share of step","From Nsight Systems"]],
 expected:"Latency falls with TP; per-GPU efficiency falls too; all-reduce share grows with TP and is much larger without NVLink."},
 learn:"TP buys latency with interconnect bandwidth. It belongs where bandwidth is high: inside a node.",
@@ -731,7 +737,7 @@ formula:`bubble fraction ≈ (stages − 1) ÷ (micro-batches + stages − 1)`,
 example:`<b>Worked example</b>2 stages with 4 micro-batches: bubble ≈ 1/5 = 20%. With 8 micro-batches: ~11%.`,
 predict:["Bubble fraction at 2, 4 and 8 micro-batches.","When would PP beat TP across a slow link?"],
 lab:{name:"D1b · Bubble vs micro-batches",why:"Set up N2's comparison of TP vs TP+PP across nodes.",
-spec:[["Instance","g6.12xlarge, then p4d"],["Model","Llama-3.1-8B, 2 stages"],["Gates","G1b vs single GPU"]],
+spec:[["Instance","g6.12xlarge, then p5.48xlarge"],["Model","Llama-3.1-8B, 2 stages"],["Gates","G1b vs single GPU"]],
 metrics:[["Bubble fraction","Measured vs formula"],["Throughput vs micro-batches",""]],
 expected:"Bubble shrinks as micro-batches grow, roughly following the formula."},
 learn:"PP trades idle time for cheap communication.",next:"Replicas and a router.",check:["Why does PP suit slow links better than TP?"]});
@@ -748,7 +754,7 @@ TTFT saved per hit ≈ cached tokens × prefill time per token`,
 example:`<b>Worked example</b>Workload C turn 4: ~4.4K tokens of history are cached on the replica that served turn 3. Routing there prefills ~300 new tokens; round-robin to another replica prefills all ~4.7K (~0.5 s on an A100).`,
 predict:["Hit rate per policy on workload C at moderate load.","p99 TTFT per policy as load rises.","At what load does pure prefix-affinity lose to least-loaded?"],
 lab:{name:"D2 · Routing policies",why:"Show cache-aware routing as the agent-serving differentiator, with numbers.",
-spec:[["Instance","g6.12xlarge (4 replicas, 1B) for logic; p4d (8B replicas) for numbers"],["Workload","Workload C at rising load"],["Policies","Round-robin, least-loaded, prefix/session-aware"],["Tracing","OpenTelemetry added here (decision 6)"]],
+spec:[["Instance","g6.12xlarge (4 replicas, 1B) for logic; p5.48xlarge (8B replicas) for numbers"],["Workload","Workload C at rising load"],["Policies","Round-robin, least-loaded, prefix/session-aware"],["Tracing","OpenTelemetry added here (decision 6)"]],
 metrics:[["Prefix hit rate","Per policy"],["p99 TTFT",""],["Goodput",""],["Load imbalance","Max ÷ mean queue depth"]],
 expected:"Cache-aware routing wins on hit rate and TTFT until load imbalance takes over; a combined score wins overall."},
 learn:"Routing decides the cache hit rate; the router is where agent serving is won.",
@@ -764,11 +770,11 @@ lesson:`<p>Even with chunked prefill, prefill and decode share each step, so one
 <p>It pays when transfer time is small next to the interference it removes. Shipping whole blocks layer by layer lets transfer overlap the rest of prefill (decision 7's layout). The baseline is colocated serving <i>with</i> chunked prefill (M7).</p>`,
 formula:`transfer time = prompt tokens × KV/token ÷ link bandwidth
 8K prompt, 8B: 8,192 × 128 KB = 1 GiB`,
-example:`<b>Worked example</b>1 GiB of KV over NVLink (~300 GB/s effective) ≈ 3.5 ms; over PCIe on L4s (~25 GB/s) ≈ 43 ms. Against a 0.85 s prefill, both are small; for a 500-token prompt the fixed setup cost matters more.`,
+example:`<b>Worked example</b>1 GiB of KV over NVLink (~300 GB/s effective) ≈ 3.5 ms; over PCIe on L4s (~25 GB/s) ≈ 43 ms. Against a 0.26 s prefill on the H100, NVLink's cost is negligible and PCIe's is a sixth of it; for a 500-token prompt the fixed setup cost matters more.`,
 diag:"pd",
 predict:["SLO attainment colocated (with M7) vs disaggregated on Mix.","KV transfer time for 8K prompts on NVLink and on PCIe.","Prompt length below which disaggregation stops paying."],
 lab:{name:"D3 · P/D vs colocated",why:"Find when separating the phases beats a well-tuned colocated engine.",
-spec:[["Instance","g6.12xlarge for correctness; p4d for numbers"],["Model","Llama-3.1-8B"],["Workload","Mix and A at rising load"],["Baseline","Colocated with chunked prefill (M7)"],["Gates","G1b: disaggregated output matches colocated"]],
+spec:[["Instance","g6.12xlarge for correctness; p5.48xlarge for numbers"],["Model","Llama-3.1-8B"],["Workload","Mix and A at rising load"],["Baseline","Colocated with chunked prefill (M7)"],["Gates","G1b: disaggregated output matches colocated"]],
 metrics:[["SLO attainment / goodput",""],["KV transfer time","Per prompt length"],["Prefill:decode GPU ratio","Best split"]],
 expected:"Disaggregation wins on ITL-sensitive mixes with long prompts; for short prompts transfer overhead can flip it."},
 learn:"Separating the phases removes interference at the price of moving bytes.",
@@ -781,7 +787,7 @@ choice:"Session API: add session_id plus tool-call pause/resume hints (and optio
 M({unit:"2",id:"m18",n:18,title:"KV tiering on one node",tags:["D4",["memory","m"]],status:"planned",
 obj:["Place KV across HBM, DRAM and NVMe","Find the fetch-vs-recompute crossover","Design eviction for paused agent sessions"],
 lesson:`<p>Agents pause for tool calls lasting seconds to minutes, and their KV sits idle in scarce GPU memory. <b>KV tiering</b> moves idle KV down to CPU DRAM or local NVMe and brings it back on resume. Each tier holds more and moves slower.</p>
-<p>Fetching beats recomputing when the bytes divided by the tier's bandwidth take less time than prefilling those tokens again. For long prefixes, prefill grows faster than linearly with length while bytes grow linearly, so fetching wins. For short prefixes, two fixed costs decide instead: each fetch pays a setup latency, and a prefill can never cost less than one full read of the weights (~8 ms for the 8B on an A100). Those set the crossover. This ties directly to patent US12547545B2 (HA via in-memory cache).</p>`,
+<p>Fetching beats recomputing when the bytes divided by the tier's bandwidth take less time than prefilling those tokens again. For long prefixes, prefill grows faster than linearly with length while bytes grow linearly, so fetching wins. For short prefixes, two fixed costs decide instead: each fetch pays a setup latency, and a prefill can never cost less than one full read of the weights (~5 ms for the 8B on the H100). Those set the crossover. This ties directly to patent US12547545B2 (HA via in-memory cache).</p>`,
 formula:`fetch time     = setup latency + tokens × KV/token ÷ tier bandwidth
 recompute time ≈ max(weights ÷ bandwidth, tokens × 2 × params ÷ (MFU × peak))
 crossover: fetch time = recompute time`,
@@ -789,7 +795,7 @@ example:`<b>Worked example</b>4K-token agent prefix on the 8B: 512 MB of KV. Fro
 diag:"tiers",
 predict:["Crossover prompt length for DRAM and for NVMe.","Resume TTFT for a paused session: recompute vs DRAM vs NVMe.","How much more concurrency does offloading paused sessions free?"],
 lab:{name:"D4 · Fetch vs recompute",why:"Measure the tier economics that Phase 3 takes cluster-wide.",
-spec:[["Instance","p4d (NVMe instance storage)"],["Model","Llama-3.1-8B"],["Workload","Workload C with tool pauses; prompt length sweep"],["Gates","Restored KV gives tokens identical to never-evicted (fp32)"]],
+spec:[["Instance","p5.48xlarge (NVMe instance storage)"],["Model","Llama-3.1-8B"],["Workload","Workload C with tool pauses; prompt length sweep"],["Gates","Restored KV gives tokens identical to never-evicted (fp32)"]],
 metrics:[["Resume TTFT per tier",""],["Crossover length",""],["Running sessions at fixed HBM",""]],
 expected:"DRAM fetch beats recompute at almost every length; NVMe wins past a crossover of a few thousand tokens."},
 learn:"Each memory tier has a length past which moving bytes beats doing math.",
@@ -808,7 +814,7 @@ recovery TTFT ≈ detection + recompute(prompt + emitted)`,
 example:`<b>Worked example</b>8B weights, 16 GB: from S3 at ~1 GB/s ≈ 16 s; NVMe at ~5 GB/s ≈ 3 s; a peer GPU over NVLink in well under a second.`,
 predict:["Recovery time after a process kill mid-stream.","Requests lost with and without replay.","Cold start for each weight source."],
 lab:{name:"D5 · Failure injection",why:"Apply distributed-systems fundamentals to serving and measure them.",
-spec:[["Instance","p4d"],["Workload","R4 soak (Mix + C) with injected kills, OOM, node loss"],["Gates","Resumed output matches an uninterrupted run (greedy)"]],
+spec:[["Instance","p5.48xlarge"],["Workload","R4 soak (Mix + C) with injected kills, OOM, node loss"],["Gates","Resumed output matches an uninterrupted run (greedy)"]],
 metrics:[["Recovery time",""],["Requests lost",""],["Cold-start time per source",""]],
 expected:"Replay loses no requests at the cost of a recompute pause; peer-GPU loading is fastest."},
 learn:"Reliability is a latency budget for failure cases.",
@@ -837,11 +843,11 @@ lesson:`<p>A 70B model on two 8-GPU nodes can be split TP=16 (every layer's all-
 formula:`TP=16: 2 × layers all-reduces per step over EFA
 TP=8+PP=2: 1 activation transfer per micro-batch per step over EFA`,
 example:`<b>Worked example</b>70B has 80 layers: TP=16 puts 160 cross-node all-reduces on every decode step. TP=8 + PP=2 sends one activation tensor (8,192 × batch × 2 bytes) between nodes.`,
-predict:["Decode ITL for each layout on p4d and on p5.","Does p5's 8× more EFA bandwidth make TP=16 viable?"],
+predict:["Decode ITL for each layout on 2× p5 over EFA.","Would TP=16 still be viable on p4d's 8× slower EFA?"],
 lab:{name:"N2 · TP vs TP+PP over EFA",why:"Confirm or break the rule of thumb with a real model.",
-spec:[["Instance","2× p4d or 2× p5, EFA, placement group"],["Model","Llama-3.3-70B"],["Engine","Own engine with D1b, or vLLM as a measurement (decision 13)"]],
+spec:[["Instance","2× p5.48xlarge, EFA, placement group"],["Model","Llama-3.3-70B"],["Engine","Own engine with D1b, or vLLM as a measurement (decision 13)"]],
 metrics:[["ITL and throughput per layout",""],["Bubble fraction vs all-reduce share",""]],
-expected:"TP=8 + PP=2 wins on p4d; the gap narrows on p5."},
+expected:"TP=8 + PP=2 still wins on p5, by less than it would on p4d."},
 learn:"Keep the chatty parallelism on the fast link.",next:"Ship KV between nodes instead (N3).",check:["What crosses the node boundary under PP?"]});
 
 M({unit:"3",id:"m22",n:22,title:"Cross-node P/D disaggregation",tags:["N3",["memory","m"]],status:"planned",
@@ -850,11 +856,11 @@ lesson:`<p>D3 moved KV between GPUs in one box. N3 moves it across EFA: prefill 
 formula:`8K × 160 KB ≈ 1.3 GB
 p4d EFA ~50 GB/s → ~26 ms     p5 EFA ~400 GB/s → ~3 ms
 recompute 8K on 70B → hundreds of ms`,
-example:`<b>Worked example</b>bf16 KV doubles the transfer to ~2.6 GB: ~52 ms on p4d, still well under the recompute time for 8K tokens.`,
+example:`<b>Worked example</b>bf16 KV doubles the transfer to ~2.6 GB: ~6.5 ms on p5 (~52 ms on p4d), still well under the recompute time for 8K tokens.`,
 diag:"pd",
-predict:["Transfer time for 1K, 4K, 8K, 32K prompts on p4d and p5.","Prompt length below which recompute wins."],
+predict:["Transfer time for 1K, 4K, 8K, 32K prompts on p5 over EFA.","Prompt length below which recompute wins."],
 lab:{name:"N3 · KV over EFA",why:"Measure the crossover that every cluster-caching decision depends on.",
-spec:[["Instance","2× p4d or 2× p5, EFA"],["Model","Llama-3.3-70B, fp8 and bf16 KV"],["Transport","NIXL (decision 14)"]],
+spec:[["Instance","2× p5.48xlarge, EFA"],["Model","Llama-3.3-70B, fp8 and bf16 KV"],["Transport","NIXL (decision 14)"]],
 metrics:[["Transfer time vs length",""],["End-to-end TTFT vs colocated",""],["Crossover length",""]],
 expected:"Moving bytes beats recompute for long prompts; a crossover appears at short lengths."},
 learn:"Over a fast fabric, KV is cheaper to move than to rebuild.",next:"Route across nodes with the cache in mind (N4).",check:["Why does fp8 KV matter more across nodes?"]});
@@ -865,7 +871,7 @@ lesson:`<p>Replicas on both nodes sit behind the D2 router. Now a cache hit on t
 formula:`cost(replica) = recompute(uncached) + transfer(remote cached) + queue wait`,
 predict:["Hit rate and p99 TTFT for local-only vs cross-node-aware routing on workload C."],
 lab:{name:"N4 · Routing across nodes",why:"Quantify routing to where the prefix lives against load balance across nodes.",
-spec:[["Instance","2× p4d or p5"],["Workload","Workload C at rising load"],["Router","D2 router with KV events from both nodes"]],
+spec:[["Instance","2× p5.48xlarge"],["Workload","Workload C at rising load"],["Router","D2 router with KV events from both nodes"]],
 metrics:[["Hit rate",""],["p99 TTFT",""],["Cross-node bytes moved",""]],
 expected:"Cross-node-aware routing keeps the hit rate of a single node while spreading load."},
 learn:"In a cluster, a cache hit has a location.",next:"Build the cluster-wide KV store (P1).",check:["When is a remote hit worse than a local miss?"]});
@@ -881,7 +887,7 @@ formula:`fetch time = bytes ÷ data-plane bandwidth + index lookup
 hit rate rises with store size, with diminishing returns`,
 predict:["Hit rate vs cache size on workload C.","Fetch time per transport (Redis/TCP, NIXL, LMCache) at 4K and 32K tokens."],
 lab:{name:"P1 · Global prefix cache",why:"Measure cross-node fetch against local recompute, by prompt length and transport.",
-spec:[["Instance","2× p4d or p5"],["Transports","Redis over TCP (baseline), NIXL or Mooncake TE, LMCache"],["Workload","Workload C; Mooncake trace replay (decision 2)"]],
+spec:[["Instance","2× p5.48xlarge"],["Transports","Redis over TCP (baseline), NIXL or Mooncake TE, LMCache"],["Workload","Workload C; Mooncake trace replay (decision 2)"]],
 metrics:[["Hit rate vs cache size",""],["Fetch vs recompute per transport",""]],
 expected:"RDMA fetch wins well below the length where TCP does."},
 learn:"The data plane decides whether a cluster cache is worth having.",next:"Turn the cache into a product (P2).",check:["Why keep the index and the bytes in different systems?"]});
@@ -894,7 +900,7 @@ formula:`break-even reads = write premium ÷ (1 − read price)
   1.25× write, 0.1× read → 0.25 ÷ 0.9 ≈ 0.28 extra reads`,
 predict:["Memory cost per TTL setting on workload C.","Hit rate lost to per-tenant salting."],
 lab:{name:"P2 · TTL, pricing, isolation",why:"See how cache policy becomes a price, and what isolation costs.",
-spec:[["Instance","p4d or p5"],["Workload","Workload C with multiple tenants"],["Sweeps","TTL, minimum length, salt on/off"]],
+spec:[["Instance","p5.48xlarge"],["Workload","Workload C with multiple tenants"],["Sweeps","TTL, minimum length, salt on/off"]],
 metrics:[["Hit rate vs TTL",""],["Memory cost",""],["Timing leak with and without salt",""]],
 expected:"Hit rate saturates past a few minutes of TTL; salting removes the timing signal at a small hit-rate cost."},
 learn:"Cache policy is a pricing decision and a security boundary.",next:"Prefetch an agent's KV before it needs it (P3).",check:["Why does salting cost hit rate?"]});
@@ -906,7 +912,7 @@ formula:`resume TTFT ≈ max(0, fetch time − (tool time − prefetch lead)) + 
 diag:"tiers",
 predict:["Resume TTFT with offload and no prefetch vs with prefetch.","How early must prefetch start for an NVMe-tier session of 8K tokens?"],
 lab:{name:"P3 · Resume with and without prefetch",why:"Show the agent-serving differentiator at cluster scale.",
-spec:[["Instance","2× p4d or p5"],["Workload","Workload C with tool-duration hints"],["Gates","Restored sessions produce identical tokens"]],
+spec:[["Instance","2× p5.48xlarge"],["Workload","Workload C with tool-duration hints"],["Gates","Restored sessions produce identical tokens"]],
 metrics:[["Resume TTFT",""],["HBM freed during pauses",""],["Prefetch accuracy",""]],
 expected:"Prefetch brings resume TTFT close to a warm hit while freeing HBM during pauses."},
 learn:"Knowing the agent's schedule turns a cache miss into a hit.",next:"Probe a production system (P4).",check:["What happens if the tool returns earlier than predicted?"]});
@@ -930,19 +936,19 @@ lesson:`<p>llm-d (Kubernetes-native, Go) and NVIDIA Dynamo (Rust core) package w
 formula:`gap per workload = production goodput ÷ own goodput, explained by component`,
 predict:["Where will the production stack be clearly ahead: kernels, routing, or KV transfer?"],
 lab:{name:"Production stack comparison",why:"Ground the whole distributed design against what teams deploy.",
-spec:[["Platform","EKS with GPU node groups (p4d / p5)"],["Stack","vLLM + llm-d or NVIDIA Dynamo"],["Workload","A, B, C, Mix with the same client"]],
+spec:[["Platform","EKS with GPU node groups (p5.48xlarge)"],["Stack","vLLM + llm-d or NVIDIA Dynamo"],["Workload","A, B, C, Mix with the same client"]],
 metrics:[["Goodput, p99 TTFT / ITL",""],["Hit rate",""],["Operational effort","Deploy and scale steps"]],
 expected:"Production ahead on kernels and operations; routing and caching comparable if Units 2–3 went well."},
 learn:"Production stacks are the same ideas with more engineering hours.",next:"Put a price on it (module 29).",check:["Which of your components maps to which llm-d / Dynamo component?"]});
 
 M({unit:"4",id:"m29",n:29,title:"Self-host vs API cost",tags:["cost"],status:"planned",
 obj:["Compute cost per job three ways","Find the break-even utilisation"],
-lesson:`<p>Run the same 2,000-paper summarization job three ways: p4/p5 with vLLM, Bedrock real-time, and Bedrock batch. Self-hosting has a fixed hourly cost, so its price per paper depends on how busy you keep the GPUs. APIs charge per token. The <b>break-even utilisation</b> is where they cost the same.</p>`,
+lesson:`<p>Run the same 2,000-paper summarization job three ways: p5.48xlarge with vLLM, Bedrock real-time, and Bedrock batch. Self-hosting has a fixed hourly cost, so its price per paper depends on how busy you keep the GPUs. APIs charge per token. The <b>break-even utilisation</b> is where they cost the same.</p>`,
 formula:`self-host cost/paper = instance $/h ÷ (papers/h at utilisation u)
 break-even u: self-host cost/paper = API cost/paper`,
-predict:["Cost per 1,000 papers each way.","Break-even utilisation for p4d vs Bedrock batch."],
+predict:["Cost per 1,000 papers each way.","Break-even utilisation for the p5.48xlarge vs Bedrock batch."],
 lab:{name:"Cost study",why:"Turn throughput numbers into a business answer.",
-spec:[["Self-host","p4/p5 + vLLM"],["API","Bedrock real-time and batch"],["Job","2,000 arXiv papers (workload A)"]],
+spec:[["Self-host","p5.48xlarge + vLLM"],["API","Bedrock real-time and batch"],["Job","2,000 arXiv papers (workload A)"]],
 metrics:[["Cost per 1,000 papers",""],["Wall-clock time",""],["Break-even utilisation",""]],
 expected:"Batch API cheapest at low utilisation; self-host wins only when kept busy."},
 learn:"Throughput is only useful once it has a price.",next:"Optional Neuron run and upstream work (module 30).",check:["Why does utilisation decide self-host cost?"]});
@@ -951,7 +957,7 @@ M({unit:"4",id:"m30",n:30,title:"Neuron and upstream contribution",tags:["option
 obj:["Run the same job on Trainium/Inferentia","Contribute to llm-d, SGLang or vLLM"],
 lesson:`<p>Optionally, run the cost-study job with vLLM-on-Neuron to close the Trainium/Inferentia gap. Then, with D2–D4 and Phase 3 data in hand, write substantive comments or a small PR on the open agent-aware KV-cache issues in llm-d, SGLang and vLLM.</p>`,
 formula:`same job, same metrics: cost per 1,000 papers on Neuron`,
-predict:["Cost per 1,000 papers on Inferentia vs p4d."],
+predict:["Cost per 1,000 papers on Inferentia vs the p5.48xlarge."],
 lab:{name:"Neuron run + upstream",why:"Cover non-NVIDIA hardware and turn findings into public work.",
 spec:[["Instance","inf2 / trn1"],["Stack","vLLM on Neuron"],["Upstream","Comments or PR on agent-aware KV caching"]],
 metrics:[["Cost per 1,000 papers",""],["Upstream outcome","Merged / discussed"]],
@@ -1061,7 +1067,7 @@ transfer time            = bytes ÷ link bandwidth</div></div>
 <tr><td>L4 (g6)</td><td class="n">~121 TFLOPS</td><td class="n">~300 GB/s</td><td class="n">~400 FLOP/B</td><td class="n">~54 ms</td><td class="n">~8 ms</td></tr>
 <tr><td>A100 40 GB (p4d)</td><td class="n">312 TFLOPS</td><td class="n">1.56 TB/s</td><td class="n">~200 FLOP/B</td><td class="n">~10.3 ms</td><td class="n">~1.6 ms</td></tr>
 <tr><td>A100 80 GB (p4de)</td><td class="n">312 TFLOPS</td><td class="n">2.04 TB/s</td><td class="n">~153 FLOP/B</td><td class="n">~7.9 ms</td><td class="n">~1.2 ms</td></tr>
-<tr><td>H100 (p5)</td><td class="n">~989 TFLOPS</td><td class="n">3.35 TB/s</td><td class="n">~295 FLOP/B</td><td class="n">~4.8 ms</td><td class="n">~0.7 ms</td></tr>
+<tr><td>H100 (p5.4xlarge, p5.48xlarge)</td><td class="n">~989 TFLOPS</td><td class="n">3.35 TB/s</td><td class="n">~295 FLOP/B</td><td class="n">~4.8 ms</td><td class="n">~0.7 ms</td></tr>
 </tbody></table></div>
 <div class="tbl"><table><thead><tr><th>Link</th><th>Bandwidth</th></tr></thead><tbody>
 <tr><td>NVLink, inside a node</td><td class="n">~900 GB/s per GPU</td></tr>
@@ -1084,7 +1090,7 @@ transfer time            = bytes ÷ link bandwidth</div></div>
 <tr><td class="n">13</td><td>Pipeline-parallelism gap</td><td>D1b / N2</td><td>Open</td></tr>
 <tr><td class="n">14</td><td>KV transfer mechanism</td><td>D3</td><td>Open</td></tr>
 <tr><td class="n">15</td><td>Failure model</td><td>D5</td><td>Open</td></tr>
-<tr><td class="n">16</td><td>Multi-GPU dev hardware</td><td>D1</td><td>Open</td></tr>
+<tr><td class="n">16</td><td>Multi-GPU dev hardware</td><td>D1</td><td>Decided 2026-11-14 (via 25)</td></tr>
 <tr><td class="n">17</td><td>Cluster cache planes</td><td>P1</td><td>Open</td></tr>
 <tr><td class="n">18</td><td>KV compatibility across engines</td><td>P1</td><td>Open</td></tr>
 <tr><td class="n">19</td><td>Eviction and TTL across tiers</td><td>D4</td><td>Open</td></tr>
@@ -1093,6 +1099,7 @@ transfer time            = bytes ÷ link bandwidth</div></div>
 <tr><td class="n">22</td><td>Exit criteria and write-ups</td><td>All</td><td>Set in the plan</td></tr>
 <tr><td class="n">23</td><td>MVP cut: Phase 1a + M7 + D2 + D3</td><td>All</td><td>Set in the plan</td></tr>
 <tr><td class="n">24</td><td>Phase 5 choices</td><td>K3</td><td>Open</td></tr>
+<tr><td class="n">25</td><td>Measurement hardware per experiment</td><td>v1 GPU session</td><td>Decided 2026-11-14</td></tr>
 </tbody></table></div></div>
 <div class="sec"><h2>Glossary</h2><dl class="gloss">
 <dt>TTFT</dt><dd>Time to first token, as the client sees it: HTTP and tokenization, the hop to the engine, queue wait, prefill and first-token emission.</dd>

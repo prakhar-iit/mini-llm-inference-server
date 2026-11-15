@@ -14,6 +14,10 @@ the open decisions is at the end of the roadmap.*
 *2026-11-14 change: **the Mac tier is dropped.** The MacBook is only an editor. Nothing runs on it: tests,
 smoke runs, study dry runs and official numbers all run on EC2 (g6.xlarge first, p4/p5 for official numbers).*
 
+*2026-11-14 change (decision 25): **one measurement GPU per chain of studies.** Phase 1 official numbers run on
+one H100 (p5.4xlarge, $6.88/h), Phases 2–4 on 8× H100 nodes (p5.48xlarge), Kimi K2 on p5en (8× H200). The
+L4 (g6) stays the development and first-pass tier. A100 instances are no longer planned.*
+
 *Restructure: the roadmap is now **one ordered build sequence** (see "Implementation order"). Each open
 decision appears as a ⚑ checkpoint at the step that needs it. A **testing program** was added:
 correctness/quality gates (G0–G2) and robustness tests (R1–R4) alongside the performance studies, each
@@ -75,7 +79,7 @@ step that follows it. A milestone is done when its tests pass and its study note
 16. M8 CUDA graphs · S8
 17. M9 Quantization (G2 is the hard gate here) · S9a/S9b
 18. M10 Speculative decoding (must be lossless under G0) · S10
-19. S11 own engine vs vLLM; rerun S0–S10 on A100/H100; R4 again → **ship v1.1**
+19. S11 own engine vs vLLM; rerun S0–S10 on the H100 (p5.4xlarge); R4 again → **ship v1.1**
 
 **Phase 2 — Distributed, one node**
 20. ⚑ 16 Multi-GPU dev hardware → D1 Tensor parallelism
@@ -130,8 +134,10 @@ an editor; nothing runs on it.
      2 processes on PyTorch's CPU backend (gloo).
    - Moonlight-16B (~32 GB in bf16) fits on the g6.12xlarge.
    - First-pass L4 numbers are labelled as such and never mixed with official ones.
-2. **p4/p5 (and p5en for Kimi K2) — scripted runs only.** Official study numbers, multi-GPU and
-   multi-node performance, Phase 5.
+2. **H100 and H200 — scripted runs only (decision 25).**
+   - p5.4xlarge (1× H100 80 GB): Phase 1 official numbers, S0–S11.
+   - p5.48xlarge (8× H100, NVLink, EFA): Phase 2 performance, Phase 3 multi-node (2 nodes), Phase 4.
+   - p5en.48xlarge (8× H200): Phase 5 Kimi K2 (K0, K6, K7).
 
 *Code rules that make this work:*
 - A `--device cuda|cpu` flag (the code still accepts `mps`, but nothing is run there).
@@ -142,8 +148,8 @@ an editor; nothing runs on it.
 - Platform-specific dependency pins, so FlashInfer installs only on Linux/CUDA.
 
 **Study hardware (decided 2026-10-11, revised 2026-11-14):** development and smoke runs on a g6.xlarge. Phase 1 studies run together in
-scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one A100/H100
-(L4 acceptable for a first pass). To make that work:
+scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one H100
+(p5.4xlarge, decision 25; L4 acceptable for a first pass). To make that work:
 - Tag every milestone (`m0`, `m1`, …) so each study can check out its milestone and the one before it.
 - Write each study's prediction when its milestone lands, while the code is fresh; the GPU session only
   measures and explains the gaps.
@@ -199,7 +205,7 @@ scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0
 | L4 (g6) | ~121 TFLOPS | ~300 GB/s | ~400 FLOP/B | ~54 ms | ~8 ms |
 | A100 40GB (p4d) | 312 TFLOPS | 1.56 TB/s | ~200 FLOP/B | ~10.3 ms | ~1.6 ms |
 | A100 80GB (p4de) | 312 TFLOPS | 2.04 TB/s | ~153 FLOP/B | ~7.9 ms | ~1.2 ms |
-| H100 (p5) | ~989 TFLOPS | 3.35 TB/s | ~295 FLOP/B | ~4.8 ms | ~0.7 ms |
+| H100 (p5.4xlarge, p5.48xlarge) | ~989 TFLOPS | 3.35 TB/s | ~295 FLOP/B | ~4.8 ms | ~0.7 ms |
 
 ---
 
@@ -285,7 +291,7 @@ benchmark client, observability). They shape the whole codebase.
 | M6 | Prefix caching (chained block hashes, refcount, LRU) | R3 extended to refcounts | **S6 Shared prefixes:** workload C, and many questions on one paper (A); vary shared-prefix fraction | TTFT drops in proportion to the cached fraction; ~zero gain on unique prompts (small hashing overhead) | Why agents and RAG are cache-friendly; hit rate as a first-class metric |
 
 **Release gate, then ship v1:** all of G0–G2 and R1–R3 green, **R4 soak** passes, S0–S6 rerun on
-A100/H100 in one scripted session. Tag `v1`; repo, README with the S0–S6 charts, one write-up.
+the H100 (p5.4xlarge) in one scripted session. Tag `v1`; repo, README with the S0–S6 charts, one write-up.
 Applications for inference-platform roles open at this point.
 
 **Phase 1b — optimizations as studies (M7–M10) → v1.1 · ~4 weekends**
@@ -293,7 +299,7 @@ Applications for inference-platform roles open at this point.
 | # | Build | Study on own engine | Prediction to check | What it teaches |
 |---|---|---|---|---|
 | M7 | Chunked prefill (token budget per step) | **S7 Prefill/decode interference:** decode users' ITL while 8K prompts arrive; chunk size 256 / 512 / 2,048 | p99 ITL falls from ~whole-prefill time to ~one chunk's time; TTFT rises slightly; chunk size trades one for the other | The colocated trade-off disaggregation removes. **Required before D3**, or D3's baseline is a strawman |
-| M8 | CUDA graphs for decode | **S8 CPU launch overhead:** decode step time at batch 1–32, 1B vs 8B; profile with the PyTorch profiler / Nsight Systems | Large gain for 1B at small batch on A100/H100 (step time near the launch-overhead floor); negligible for 8B at large batch | When the GPU waits on Python, and how to see it in a profile |
+| M8 | CUDA graphs for decode | **S8 CPU launch overhead:** decode step time at batch 1–32, 1B vs 8B; profile with the PyTorch profiler / Nsight Systems | Large gain for 1B at small batch on the H100 (step time near the launch-overhead floor); negligible for 8B at large batch | When the GPU waits on Python, and how to see it in a profile |
 | M9 | Quantization: (a) weight-only 8-bit/FP8 via a borrowed kernel; (b) fp8 KV cache. **G2 is the hard gate** | **S9a** ITL at batch 1 and quality on G2; **S9b** max concurrency and long-context ITL | (a) ITL improves by roughly the byte ratio at small batch; quality loss small. Prefill gains only where FP8 tensor cores exist (L4, H100; not A100). (b) ~2× concurrent tokens at the same memory | Bytes moved are the decode cost; precision as a capacity lever |
 | M10 | Speculative decoding: n-gram (prompt lookup), then a 1B draft for the 8B. **Must be lossless under G0** | **S10 Acceptance vs speedup:** by workload (A copies a lot; B is creative) and by batch size | 1.5–2.5× at batch 1 on A; little on B. Gain shrinks and can go negative as batch grows, because spare compute disappears | Speculation spends idle compute; it is a low-load optimization |
 
@@ -301,10 +307,10 @@ Applications for inference-platform roles open at this point.
 remaining gap (kernels, scheduler details, CPU overhead). An honest gap analysis is worth more than a
 close number.
 
-**Release gate, then ship v1.1:** gates green, R4 soak rerun, S0–S10 rerun on A100/H100 (end of
+**Release gate, then ship v1.1:** gates green, R4 soak rerun, S0–S10 rerun on the H100 (end of
 Phase 1). Tag `v1.1`.
 
-### Phase 2 — Distributed, one node · ~6–8 weekends, on the 8-GPU instance
+### Phase 2 — Distributed, one node · ~6–8 weekends, on the 8-GPU instance (p5.48xlarge, decision 25)
 Every step reruns G1 against the single-GPU engine: distributed output must match TP=1 within tolerance.
 
 | Order | ⚑ Decide first | # | Build | Study | What it demonstrates |
@@ -334,7 +340,7 @@ disaggregation across nodes. Each experiment below either confirms the rule or f
 | # | Build / experiment | What it demonstrates |
 |---|---|---|
 | N1 | **Mechanics on cheap hardware**: 2 inexpensive GPU instances over plain TCP. Launch a 2-node job with Ray or Kubernetes, run NCCL all-reduce tests, then force cross-node TP and watch it crawl | Multi-node launch, NCCL tuning, failure modes — learned for a few dollars, not on p5 time |
-| N2 | **Parallelism layout on 2× p4/p5 over EFA**: 70B model, TP=16 vs TP=8 + PP=2 | Why TP stops at the node boundary; pipeline bubbles vs all-reduce cost |
+| N2 | **Parallelism layout on 2× p5.48xlarge over EFA**: 70B model, TP=16 vs TP=8 + PP=2 | Why TP stops at the node boundary; pipeline bubbles vs all-reduce cost |
 | N3 | **Cross-node P/D disaggregation** (extends D3): prefill on node A, decode on node B, KV shipped over EFA | Prediction: 70B with fp8 KV ≈ 160 KB/token, so an 8K prompt ≈ 1.3 GB → ~26 ms on p4d, ~3 ms on p5, vs hundreds of ms to recompute (bf16 KV doubles the transfer). Moving bytes beats recomputing for long prompts; for short ones, fixed transfer overhead can flip it. Find the crossover |
 | N4 | **Replicas on both nodes behind the D2 router**, with cross-node cache-aware routing | Routing to where the prefix already lives vs load balance; the cost of a cross-node cache miss |
 
@@ -353,14 +359,14 @@ disaggregation across nodes. Each experiment below either confirms the rule or f
 | P3 | **Agent angle**: offload an idle session's KV during a tool call, restore on resume; predictive pre-population (patent US12547545B2) to prefetch KV *before* the tool returns | The agent-serving differentiator at cluster scale: resume TTFT with and without prefetch |
 | P4 | **External comparison**: black-box probe of Anthropic / Bedrock prompt caching — cached vs uncached TTFT, observed TTL, cost per call | Grounds the home-built numbers against a production system |
 
-**Cost plan:** build and debug everything on cheap instances (N1). Run p4/p5 multi-node work as one or
+**Cost plan:** build and debug everything on cheap instances (N1). Run p5.48xlarge multi-node work as one or
 two planned sessions with every script ready before launch. Reserve with EC2 Capacity Blocks so the
 second node is actually available.
 
 ### Phase 4 — Production stacks and scale · ~3–4 weekends
 In order:
 1. Deploy **vLLM + llm-d or NVIDIA Dynamo on EKS**; compare against the mini server and explain the gap.
-2. **Self-host vs hyperscaler API:** run the same 2,000-paper job three ways — p4/p5 + vLLM, Bedrock
+2. **Self-host vs hyperscaler API:** run the same 2,000-paper job three ways — p5.48xlarge + vLLM, Bedrock
    real-time and Bedrock batch. Report cost per 1,000 papers and the break-even utilization.
 3. Optional: the same job on Trainium/Inferentia via vLLM-on-Neuron (closes the Neuron gap).
 4. Once D2–D4 and Phase 3 data exists: substantive comments or a small PR on the open agent-aware
@@ -420,7 +426,7 @@ random config vs HF for G0/G1, Moonlight for G2.
 **Phase 5 pending decisions (decision 24):**
 - **Which checkpoint:** recommend the newest text-only INT4 K2.x; skip the K2.5/K2.6 vision encoder.
 - **Hardware:** 1× p5en vs 2× p5. 1× p5en is simpler for K1–K5 on the real model; 2× p5 is needed to
-  practise cross-node EP.
+  practise cross-node EP. Decision 25 sets 1× p5en for K0, K6 and K7; 2× p5 stays only if cross-node EP is kept.
 - **All-to-all library on EFA:** DeepEP targets InfiniBand. Check current EFA support for DeepEP,
   pplx-kernels and NVSHMEM-over-libfabric before booking nodes. A plain NCCL all-to-all is the
   fallback baseline.
@@ -462,7 +468,7 @@ decided late, so settle it before writing M2.
 
 | # | Open decision | Options | Recommendation |
 |---|---|---|---|
-| 16 | **Multi-GPU dev hardware** (before D1) | Develop on the p4/p5 vs a cheap multi-GPU box | g6.12xlarge (4× L4, PCIe) for correctness of D1–D3. No NVLink, so performance numbers only on p4/p5 |
+| 16 | **Multi-GPU dev hardware** (before D1) | Develop on the p4/p5 vs a cheap multi-GPU box | **Decided 2026-11-14 (decision 25):** g6.12xlarge (4× L4, PCIe) for correctness of D1–D3. No NVLink, so performance numbers only on the p5.48xlarge |
 | 13 | **Pipeline parallelism gap** (before D1b) | N2 compares TP=16 vs TP=8+PP=2, but PP is never built | Add D1b (pipeline parallelism, 2 stages) to the mini server, or run N2 on vLLM explicitly as a measurement, not a build |
 | 10 | **Systems language** (before D2) | Go (llm-d, Kubernetes) vs Rust (SGLang router, Dynamo core) | Decide before D2; the router is where it's used |
 | 11 | **Router state and tokenization** (before D2) | Router keeps an approximate radix tree per replica (SGLang) vs replicas publish KV block events (llm-d, Dynamo); tokenize in router vs route on text | KV events: exact, and it becomes P1's global index unchanged. Tokenize in the router so hashes match decision 8 |
@@ -486,6 +492,7 @@ decided late, so settle it before writing M2.
 | 21 | **Dollar budget per phase** (Phase 0) | Not set. Set one per phase and enforce it with AWS Budgets alerts |
 | 22 | **Exit criteria and write-ups** | Each milestone is done when its gates and robustness tests pass and its study note is written; each phase is done when its charts are in the README and one public write-up ships |
 | 23 | **Timeline realism / MVP cut** | ~25 weekends (plus ~7 for Phase 5) assumes almost every weekend alongside Track 1. If time runs short, the interview-ready core is **Phase 1a + M7 + D2 + D3**. D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone, and applications never wait for it |
+| 25 | **Measurement hardware per experiment** (before the v1 session) | **Decided 2026-11-14:** one measurement GPU per chain of studies. L4 (g6.xlarge) for development and first pass; 1× H100 (p5.4xlarge) for Phase 1 official; 8× H100 (p5.48xlarge) for Phases 2–4; p5en for Kimi K2. Baseline remeasured whenever the GPU changes; MBU/MFU reported next to ms ([note](decisions/25-measurement-hardware.md)) |
 | 24 | **Phase 5 design choices** (before K3) | See "Phase 5 pending decisions" above (checkpoint, hardware, EFA all-to-all library, weight logistics, budget). Decide before K3, because K3's process layout must support EP + DP-attention |
 
 ---
@@ -493,8 +500,8 @@ decided late, so settle it before writing M2.
 ## Practicalities
 
 - **Cost hygiene:** development, tests and smoke runs on a single-L4 g6.xlarge, and a g6.12xlarge for
-  multi-GPU correctness. Stop instances when not in use. Use the p4/p5 (bills for all 8 GPUs) only for:
-  - the two Phase 1 study reruns
+  multi-GPU correctness. Stop instances when not in use. Run the two Phase 1 study sessions on the
+  p5.4xlarge (one H100). Use the 8-GPU p5.48xlarge or p5en (bills for all 8 GPUs) only for:
   - Phase 2 multi-GPU performance runs
   - the planned Phase 3 multi-node sessions
   - the Phase 5 Kimi K2 session

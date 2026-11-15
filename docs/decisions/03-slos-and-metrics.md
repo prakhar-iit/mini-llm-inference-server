@@ -34,14 +34,15 @@ Engine-side timings (queue, prefill, decode, cache-hit tokens) come from the per
 | C — agent turn | ≤ 1 s | ≤ 50 ms |
 
 ## Hardware tiers
-- **Official:** Llama-3.1-8B on one A100-80GB or H100. Decode floor ≈ 8–10 ms (A100), ≈ 5 ms (H100).
+- **Official:** Llama-3.1-8B on one H100 (p5.4xlarge). Decode floor ≈ 4.8 ms. *Amended 2026-11-14 by
+  decision 25: the A100 is no longer an official tier.*
 - **L4 first pass:** Llama-3.2-1B (decode floor ≈ 8 ms). Llama-3.1-8B on the L4 has a ≈ 54 ms decode
   floor, above the TPOT SLO, so it can never pass; don't use it for goodput.
 - **No Mac tier** (dropped 2026-11-14): every run is on EC2.
 
 ## Sanity checks behind the numbers
-- A: an 8K-token 8B prefill ≈ 1.3×10¹⁴ FLOPs ≈ 0.85 s on an A100 at 50% MFU, leaving ~2 s for queueing.
-- TPOT 50 ms ≈ 20 tokens/s, faster than reading speed; ~5× the A100 floor, leaving room to batch.
+- A: an 8K-token 8B prefill ≈ 1.3×10¹⁴ FLOPs ≈ 0.26 s on an H100 at 50% MFU, leaving ~2.7 s for queueing.
+- TPOT 50 ms ≈ 20 tokens/s, faster than reading speed; ~10× the H100 floor, leaving room to batch.
 - C at 1 s is hard before M6 (each turn re-prefills its whole history); S6 is meant to show that.
 
 ## Rejected

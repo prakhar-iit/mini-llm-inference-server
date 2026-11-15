@@ -3,7 +3,7 @@
 **Milestone:** M5a (kernel part: M5b, M5c) · **Compared against:** git tag `m4` (contiguous slots) · **Date:**
 
 ## Setup
-- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
+- Hardware: one H100 (p5.4xlarge, decision 25) in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload: 256 workload-B-shaped requests (100-token prompts, outputs uniform 16–1,000), all queued at once,
   in-process (no server), `max_model_len` 8,192.
@@ -12,7 +12,7 @@
   - Part B: the same requests with the pool at 1, ½, ¼, ⅛, 1⁄16 of part A's.
   - Part C (GPU session, after M5b/M5c): decode step time at batch 1/8/32 × context 512/4,096 for M4's contiguous
     slots, the torch reference, FlashInfer and flash-attn on the same pages.
-- Command(s): `python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu a100-80`
+- Command(s): `python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu h100`
   (add `--backends torch_ref,flashinfer,flash_attn` once both kernels are installed)
 - Correctness: G0/G1a on paged KV (`tests/test_paged.py`, fp32 exact, preempted requests included), R3 after
   every run (the script checks it too), and in the GPU session `tests/test_kernels.py` (each kernel vs the

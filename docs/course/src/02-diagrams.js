@@ -59,7 +59,7 @@ ${["h1","h2","h3"].map((h,i)=>`<line x1="${90+i*110}" y1="98" x2="${110+i*110}" 
 <text x="552" y="54" class="s-mut">req A</text><text x="552" y="150" class="s-mut">req B</text>
 <text x="110" y="150" class="s-mut">h_i = SHA-256(h_(i−1) ‖ 16 token ids)</text><text x="110" y="62" class="s-ink">shared system prompt: computed once</text>
 </svg>`},
-stall:{cap:"Continuous batching, one decoding user's view. Each A prefill step pauses every running decode: one ITL gap of ~0.85 s. Averaged over 1,000 tokens it barely moves TPOT.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Prefill stall in continuous batching">
+stall:{cap:"Continuous batching, one decoding user's view. Each A prefill step pauses every running decode: one ITL gap of ~0.26 s. Averaged over 1,000 tokens it barely moves TPOT.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Prefill stall in continuous batching">
 <text x="20" y="24" class="t-lg s-ink">Engine steps (M4)</text>
 ${Array.from({length:6},(_,i)=>`<rect x="${20+i*24}" y="36" width="20" height="30" rx="2" class="s-m"/>`).join("")}
 <rect x="166" y="36" width="190" height="30" rx="2" class="s-c"/><text x="178" y="56" fill="#fff">A prefill, 8K tokens</text>
@@ -68,7 +68,7 @@ ${Array.from({length:10},(_,i)=>`<rect x="${362+i*24}" y="36" width="20" height=
 ${Array.from({length:6},(_,i)=>`<circle cx="${30+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
 ${Array.from({length:10},(_,i)=>`<circle cx="${372+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
 <line x1="150" y1="140" x2="372" y2="140" class="s-cst" stroke-width="2"/><line x1="150" y1="134" x2="150" y2="146" class="s-cst" stroke-width="2"/><line x1="372" y1="134" x2="372" y2="146" class="s-cst" stroke-width="2"/>
-<text x="190" y="160" class="s-c">one ITL gap ≈ 0.85 s</text>
+<text x="190" y="160" class="s-c">one ITL gap ≈ 0.26 s</text>
 <text x="20" y="188" class="s-mut">ITL p99 sees the gap · TPOT = total decode time ÷ tokens averages it away</text>
 </svg>`},
 chunked:{cap:"Without chunking, one 8K prefill step stalls every decoding user. With a token budget, the prefill is cut into chunks that share steps with decodes.",svg:`<svg viewBox="0 0 640 210" role="img" aria-label="Chunked prefill timeline">

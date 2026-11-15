@@ -8,7 +8,7 @@ Part B, workload C: agent sessions (shared per-agent-type prefix, history growin
 round-robin across sessions, each turn appending the real reply. Every turn after the first should hit its whole
 previous context, and turns of a new session hit its agent type's prefix.
 
-    python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu a100-80
+    python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu h100
     python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.2-1B --prompt-len 1024 --requests 8 \\
         --sessions 6 --agent-scale 0.2 --kv-gb 0.5  # smoke run
 """

@@ -7,7 +7,7 @@ decision is made (the plan's "Implementation order" shows where each one is need
 |---|---|---|---|---|
 | 1 | Engine process architecture | M2 | Frontend + engine core over ZMQ + msgpack; executor interface for per-GPU workers at D1 ([note](01-process-architecture.md)) | 2026-10-11 |
 | 2 | Workload C (agent) spec | M2 | Synthetic generator with sweepable distributions, token-id prompts, seeded JSONL; burstiness fitted to Azure/BurstGPT; Mooncake replay at P1 ([note](02-workload-c.md)) | 2026-10-11 |
-| 3 | SLO and metric definitions | M2 | TTFT p99 ≤ 3 s (A) / 1 s (B, C), TPOT p99 ≤ 50 ms; official tier 8B on A100/H100, L4 tier 1B; client-side open-loop timing ([note](03-slos-and-metrics.md)) | 2026-10-11 |
+| 3 | SLO and metric definitions | M2 | TTFT p99 ≤ 3 s (A) / 1 s (B, C), TPOT p99 ≤ 50 ms; official tier 8B on the H100 (decision 25), L4 tier 1B; client-side open-loop timing ([note](03-slos-and-metrics.md)) | 2026-10-11 |
 | 4 | Correctness method | M2 | Layered: G0 batch-1 exact; G1a fp32 batched exact; G1b bf16 teacher-forced logits within 2× HF's own batch noise; G2 quality ([note](04-correctness.md)) | 2026-10-11 |
 | 5 | Benchmark client | M2 | Own asyncio client for A, B and C; cross-checked against `vllm bench serve` in the GPU session (within ~5%) ([note](05-benchmark-client.md)) | 2026-10-11 |
 | 6 | Observability | M2 | Per-request timeline (returned to client + JSONL), engine step log behind a flag, Prometheus `/metrics`; OpenTelemetry at D2 ([note](06-observability.md)) | 2026-10-11 |
@@ -20,10 +20,11 @@ decision is made (the plan's "Implementation order" shows where each one is need
 | 13 | Pipeline parallelism gap | N2 | | |
 | 14 | KV transfer mechanism | D3 | | |
 | 15 | Failure model | D5 | | |
-| 16 | Multi-GPU dev hardware | D1 | | |
+| 16 | Multi-GPU dev hardware | D1 | g6.12xlarge (4× L4) for D1–D3 correctness; performance only on the p5.48xlarge (settled by [decision 25](25-measurement-hardware.md)) | 2026-11-14 |
 | 17 | Cluster cache data vs control plane | P1 | | |
 | 18 | KV compatibility across engines | P1 | | |
 | 19 | Eviction and TTL across tiers | D4 | | |
 | 20 | AWS access and quotas | Phase 0 (G-quota), N1 (P-instances) | | |
 | 21 | Budget per phase | Phase 0 | | |
 | 24 | Phase 5 choices (checkpoint, hardware, EFA all-to-all, weights, budget) | K3 | | |
+| 25 | Measurement hardware per experiment | v1 GPU session | One GPU per chain of studies: L4 g6.xlarge (dev, first pass), 1× H100 p5.4xlarge (Phase 1 official), 8× H100 p5.48xlarge (Phases 2–4), p5en (Kimi K2); remeasure the baseline when the GPU changes ([note](25-measurement-hardware.md)) | 2026-11-14 |

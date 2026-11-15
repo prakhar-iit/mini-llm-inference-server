@@ -7,7 +7,8 @@ An LLM inference server built one optimization at a time, with a study per miles
 - **EC2 only.** The MacBook is an editor. Don't run tests, smoke runs or studies on it, and don't
   propose Mac/MPS runs.
 - g6.xlarge / g6.12xlarge (L4) for development, `pytest`, smoke runs and first-pass numbers;
-  p4/p5 (p5en for Kimi K2) for official numbers. Label L4 numbers as first-pass and never mix them with
+  p5.4xlarge (1× H100) for Phase 1 official numbers, p5.48xlarge (8× H100) for Phases 2–4, p5en for
+  Kimi K2 (decision 25). One GPU per chain of studies; remeasure the baseline when the GPU changes. Label L4 numbers as first-pass and never mix them with
   official ones.
 - Every paid session is scripted end to end before the instance starts (`scripts/aws/README.md`).
 

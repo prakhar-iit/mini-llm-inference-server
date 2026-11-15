@@ -47,7 +47,10 @@ Everything runs on EC2. The MacBook is only an editor: no tests, smoke runs or s
 | Tier | Machine | Use it for |
 |---|---|---|
 | 1 | AWS g6.xlarge (1× L4) / g6.12xlarge (4× L4) | Development, `pytest`, smoke runs, CUDA path, study dry runs, multi-GPU correctness |
-| 2 | AWS p4/p5 (p5en for Kimi K2) | Scripted runs only: official study numbers, multi-GPU and multi-node performance |
+| 2 | AWS p5.4xlarge (1× H100) | Scripted runs only: Phase 1 official numbers (S0–S11) |
+| 3 | AWS p5.48xlarge (8× H100); p5en (8× H200) for Kimi K2 | Scripted runs only: Phases 2–4 performance, multi-node; Phase 5 |
+
+Every study in a chain runs on one GPU; when the GPU changes, the baseline is remeasured (decision 25).
 
 ## Quick start (g6.xlarge)
 
@@ -74,7 +77,7 @@ M5c (flash-attn) installs separately; see `pyproject.toml` (decision 7).
 - Predict before measuring; write the gap down in `docs/studies/`.
 - Correctness gate at every milestone: greedy output matches Hugging Face at batch 1, and logits stay
   within tolerance under batching. Compare on the same device only.
-- First-pass L4 numbers are labelled as such and never mixed with official A100/H100 numbers.
+- First-pass L4 numbers are labelled as such and never mixed with official H100 numbers.
 - Every change updates every doc it affects, including the course. See `CLAUDE.md`.
 
 ## References
