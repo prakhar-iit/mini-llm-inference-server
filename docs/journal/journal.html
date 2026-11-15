@@ -263,6 +263,7 @@ section > .sub { margin: 0 0 18px; color: var(--muted); max-width: 64ch; }
 .tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .tab:hover { color: var(--fg); }
 .panel { display: flex; flex-direction: column; gap: 44px; min-width: 0; }
+.panel[hidden], [hidden] { display: none !important; }  /* .panel's display:flex would otherwise beat the hidden attribute */
 
 /* ---------- Code tab ---------- */
 .code-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
