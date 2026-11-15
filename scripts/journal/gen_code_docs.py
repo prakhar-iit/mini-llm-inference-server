@@ -2,24 +2,18 @@
 
 Usage: python scripts/journal/gen_code_docs.py <out_dir>
 Each milestone lists its modules with a role line and review questions; new files are taken whole at
-the milestone's tag (or the working tree for the milestone in progress), changed files as a diff from the
-previous tag. The JSON files are then written to the page's database (collection "code").
+the milestone's tag, changed files as a diff from the previous tag. The JSON files are then written to the page's database (collection "code").
 """
 import json, subprocess, pathlib, sys
 REPO = pathlib.Path(__file__).resolve().parents[2]
 OUT = pathlib.Path(sys.argv[1])
+OUT.mkdir(parents=True, exist_ok=True)
 
 def git(*a):
     return subprocess.run(["git", *a], cwd=REPO, capture_output=True, text=True, check=True).stdout
 
 def at_ref(ref, path):  # file contents at a git ref
     return git("show", f"{ref}:{path}")
-
-def working(path):
-    return (REPO / path).read_text()
-
-def diff(ref, path):
-    return git("diff", "-U4", ref, "--", path)
 
 M = []  # (milestone, path, kind, fmt, code, role, review)
 
@@ -151,7 +145,7 @@ add("M2", "benchmarks/s2_overhead_queueing.py", "tool", "python", at_ref("m2", "
     "S2: TTFT split into six stages on an idle server; queue wait vs utilization against the M/D/1 formula.",
     ["Why is the M2 engine an M/D/1 queue? What do M, D and 1 stand for here?",
      "Derive W at rho = 0.9 in units of S. Why does it blow up as rho approaches 1?",
-     "The Mac smoke run measured waits below M/D/1. Give two reasons."])
+     "If the measured waits come in below M/D/1, give two reasons why."])
 add("M2", "tests/test_client.py", "test", "python", at_ref("m2", "tests/test_client.py"),
     "Arrival statistics, summary math, workload C rules, and client runs against a real tiny server.",
     ["What does `test_open_loop_requests_against_server` prove by comparing client and server timestamps?"])
@@ -227,77 +221,77 @@ add("M4", "tests/test_continuous_batching.py", "test", "python", at_ref("m4", "t
     "M4 spec: slot cache vs batch 1 (all tiny variants), scheduler rules, engine churn, joins, aborts, KV stats.",
     ["Why fill the buffers with 1e4 instead of NaN in `test_stale_slot_contents_are_never_read`?"])
 
-# ---------------- M5a (in progress: working tree vs m4) ----------------
-add("M5a", "src/minillm/cache/paged.py", "new", "python", working("src/minillm/cache/paged.py"),
+# ---------------- M5a (tag m5) ----------------
+add("M5a", "src/minillm/cache/paged.py", "new", "python", at_ref("m5", "src/minillm/cache/paged.py"),
     "The paged pool: per layer, K and V tensors [num_blocks, 16, Hkv, Dh]; `PagedStep` is one step's view of it.",
     ["Where does token 37 of a request with block table [9, 4, 12] live? Give block and offset.",
      "How many blocks fit in 1 GiB for Llama-3.2-1B in bf16? How many tokens is that?",
      "Why does `PagedStep` have nothing to mark or advance, unlike M1's KVCache?"])
-add("M5a", "src/minillm/attention/metadata.py", "new", "python", working("src/minillm/attention/metadata.py"),
+add("M5a", "src/minillm/attention/metadata.py", "new", "python", at_ref("m5", "src/minillm/attention/metadata.py"),
     "Per-step metadata for a ragged batch: query_start_loc, seq_lens, positions, slot_mapping, block_tables.",
     ["Build the metadata by hand for a decode step of a 20-token request plus a fresh 3-token prompt (block size 16).",
      "Why is it built once per step on the host, and not per layer?"])
-add("M5a", "src/minillm/attention/paged_torch_ref.py", "new", "python", working("src/minillm/attention/paged_torch_ref.py"),
+add("M5a", "src/minillm/attention/paged_torch_ref.py", "new", "python", at_ref("m5", "src/minillm/attention/paged_torch_ref.py"),
     "Reference paged attention: write new k/v by slot, gather each sequence's blocks, run SDPA.",
     ["Why are decode rows attended together but multi-token rows one at a time?",
      "What does the gather cost per step, and what does a fused kernel (M5b/M5c) do instead?",
      "Which mask does a prompt continued on top of cached tokens need?"])
-add("M5a", "src/minillm/engine/block_manager.py", "new", "python", working("src/minillm/engine/block_manager.py"),
+add("M5a", "src/minillm/engine/block_manager.py", "new", "python", at_ref("m5", "src/minillm/engine/block_manager.py"),
     "The free list of block ids, and the R3 check: free + held = total, nothing held twice.",
     ["Why does the block manager not know which request holds which block?"])
-add("M5a", "src/minillm/engine/scheduler.py", "changed", "diff", diff("m4", "src/minillm/engine/scheduler.py"),
+add("M5a", "src/minillm/engine/scheduler.py", "changed", "diff", git("diff", "-U4", "m4", "m5", "--", "src/minillm/engine/scheduler.py"),
     "Admission by blocks with a one-step lookahead; preemption of the newest request by recompute.",
     ["Why reserve a block only for requests at a block boundary, rather than one per running request?",
      "Walk a preemption: which request goes, what happens to its blocks and output, where does it re-enter the queue?",
      "Why does a preempted request recompute prompt + output rather than keeping its KV somewhere?"])
-add("M5a", "src/minillm/engine/core.py", "changed", "diff", diff("m4", "src/minillm/engine/core.py"),
+add("M5a", "src/minillm/engine/core.py", "changed", "diff", git("diff", "-U4", "m4", "m5", "--", "src/minillm/engine/core.py"),
     "Each step: the scheduled requests' uncached tokens, flattened into one ragged row, plus its metadata.",
     ["What are a request's uncached tokens on a fresh prefill, a decode, and a resume after preemption?",
      "Why can the same code path later run M7's chunked prefill?"])
-add("M5a", "src/minillm/model/llama.py", "changed", "diff", diff("m4", "src/minillm/model/llama.py"),
+add("M5a", "src/minillm/model/llama.py", "changed", "diff", git("diff", "-U4", "m4", "m5", "--", "src/minillm/model/llama.py"),
     "A ragged branch in attention: [1, heads, N, Dh] to [N, heads, Dh], then the backend's paged forward.",
     ["Why can RMSNorm, the MLP and RoPE run unchanged on a ragged row?"])
-add("M5a", "tests/test_paged.py", "test", "python", working("tests/test_paged.py"),
+add("M5a", "tests/test_paged.py", "test", "python", at_ref("m5", "tests/test_paged.py"),
     "Paged attention vs dense, model vs batch 1 on scattered blocks, block manager, scheduler, preemption, R3.",
     ["Which test proves a preempted request still produces exactly its batch-1 tokens?"])
 
-add("M5a", "benchmarks/s5_kv_pressure.py", "tool", "python", working("benchmarks/s5_kv_pressure.py"),
+add("M5a", "benchmarks/s5_kv_pressure.py", "tool", "python", at_ref("m5", "benchmarks/s5_kv_pressure.py"),
     "S5: concurrency and block fill at fixed KV memory, the preemption cliff as the pool shrinks, decode by backend.",
     ["How many contiguous slots fit in 8 GiB for Llama-3.1-8B at max_model_len 8192? How many paged requests of ~600 tokens?",
      "Why does recompute after preemption show up as extra prefill tokens, and where does it hurt latency?"])
 
-# ---------------- M5b / M5c (coded on the Mac; first run in the GPU session) ----------------
-add("M5b", "src/minillm/attention/flashinfer_backend.py", "changed", "diff", diff("m4", "src/minillm/attention/flashinfer_backend.py"),
+# ---------------- M5b / M5c (tag m5; CUDA-only, first run on EC2) ----------------
+add("M5b", "src/minillm/attention/flashinfer_backend.py", "changed", "diff", git("diff", "-U4", "m4", "m5", "--", "src/minillm/attention/flashinfer_backend.py"),
     "FlashInfer on decision 7's pages: the shared slot write, plan() once per step, decode or prefill wrapper.",
     ["Why is plan() keyed on the AttentionMetadata object, and what would planning per layer cost?",
      "Build kv_indptr, kv_indices and kv_last_page_len for sequences of 5 and 40 tokens with tables [3] and [8, 1, 6]."])
-add("M5c", "src/minillm/attention/flash_attn_backend.py", "new", "python", working("src/minillm/attention/flash_attn_backend.py"),
+add("M5c", "src/minillm/attention/flash_attn_backend.py", "new", "python", at_ref("m5", "src/minillm/attention/flash_attn_backend.py"),
     "vLLM's flash-attn on the same pages: one varlen call per layer with cu_seqlens_q, seqused_k and the block table.",
     ["Why can't upstream flash-attn 2 read these pages?",
      "flash-attn has no plan step. What does FlashInfer's plan buy it, and when does that matter (M8)?"])
-add("M5b", "tests/test_kernels.py", "test", "python", working("tests/test_kernels.py"),
+add("M5b", "tests/test_kernels.py", "test", "python", at_ref("m5", "tests/test_kernels.py"),
     "Kernels vs the reference on one GPU: a mixed ragged step, a decode-only step, and teacher-forced G1b on the 1B.",
     ["Why compare against the reference in bf16 with a tolerance instead of exact tokens?"])
 
-# ---------------- M6 (in progress) ----------------
-add("M6", "src/minillm/cache/prefix.py", "new", "python", working("src/minillm/cache/prefix.py"),
+# ---------------- M6 (tag m6) ----------------
+add("M6", "src/minillm/cache/prefix.py", "new", "python", at_ref("m6", "src/minillm/cache/prefix.py"),
     "Decision 8's hash chain (salted SHA-256 over full blocks) and the hash -> block index.",
     ["Why must block 3's hash depend on blocks 0-2, not just its own 16 tokens?",
      "Two requests compute the same prefix in one step: which block becomes the cached copy, and what happens to the other?",
      "Write the bytes hashed for block 0 of a request with salt 'a', in order."])
-add("M6", "src/minillm/engine/block_manager.py", "changed", "diff", diff("m4", "src/minillm/engine/block_manager.py"),
+add("M6", "src/minillm/engine/block_manager.py", "changed", "diff", git("diff", "-U4", "m5", "m6", "--", "src/minillm/engine/block_manager.py"),
     "Free / held (refcounted) / cached (LRU) states; tables freed tail first; R3 extended to refcounts.",
     ["Why free a block table tail first? What breaks if block 0 is evicted before block 3?",
      "Why do cached blocks count as free capacity, and when is one actually evicted?"])
-add("M6", "src/minillm/engine/scheduler.py", "changed", "diff", diff("m4", "src/minillm/engine/scheduler.py"),
+add("M6", "src/minillm/engine/scheduler.py", "changed", "diff", git("diff", "-U4", "m5", "m6", "--", "src/minillm/engine/scheduler.py"),
     "Lookup at admission (hits shared, only the tail prefilled and budgeted); blocks named as they fill.",
     ["Why are hits counted only over the first num_tokens - 1 tokens?",
      "A cached block nobody holds is a hit: why does reviving it count against free capacity?",
      "Why are blocks named before finished requests free them?"])
-add("M6", "benchmarks/s6_shared_prefixes.py", "tool", "python", working("benchmarks/s6_shared_prefixes.py"),
+add("M6", "benchmarks/s6_shared_prefixes.py", "tool", "python", at_ref("m6", "benchmarks/s6_shared_prefixes.py"),
     "S6: TTFT vs shared-prefix fraction, caching on vs off; workload C turns with growing histories.",
     ["Why run part A one request at a time?", "What hit rate do you expect on workload C, and from which two sources?"])
-add("M6", "tests/test_prefix_cache.py", "test", "python", working("tests/test_prefix_cache.py"),
+add("M6", "tests/test_prefix_cache.py", "test", "python", at_ref("m6", "tests/test_prefix_cache.py"),
     "Hash spec byte for byte, refcounts and LRU, sharing, salts, eviction, and a preempted request resuming from cache.",
     ["Which test failed when tables were freed head first, and why?"])
 

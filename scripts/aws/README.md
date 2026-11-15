@@ -16,3 +16,5 @@ One measurement GPU per chain of studies (decision 25). p5.4xlarge needs 16 vCPU
 
 Checklist before any p-instance session: vCPU quota, Capacity Block if needed, placement group and
 EFA-enabled AMI for multi-node, weights pre-staged in S3 in the same region, AWS Budgets alarm on.
+
+IAM policy for the `minillm-agent` user: [`iam/`](iam/README.md).
