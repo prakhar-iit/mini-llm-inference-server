@@ -37,6 +37,7 @@ function moduleHtml(m){
     ${m.example?`<div class="example">${m.example}</div>`:""}
   </div>
   ${d?`<figure>${d.svg}<figcaption>${esc(d.cap)}</figcaption></figure>`:""}
+  ${readHtml(m)}
   <div class="part">Predict before you run</div>
   <div class="predict">${m.predict.map((q,i)=>`<div class="q"><span class="qn">P${i+1}</span><p>${esc(q)}</p><textarea id="${m.id}-q${i}" aria-label="Your prediction ${i+1}" placeholder="A number and a reason">${esc(store.get(m.id+"-q"+i)||"")}</textarea></div>`).join("")}</div>
   <div class="part">Lab on EC2</div>
@@ -58,6 +59,22 @@ function moduleHtml(m){
     <label><input type="checkbox" id="${m.id}-lab" ${store.get(m.id+"-lab")==="1"?"checked":""}> Lab done</label>
   </div>
   </article>`;
+}
+function readHtml(m){
+  const r=READ[m.id]||[];
+  const body=r.length
+    ?`<ul>${r.map(([d,note])=>`<li><a href="${dayUrl(d)}" target="_blank" rel="noopener">Day ${d}: ${esc(DAYS[d])}</a><span>${esc(note)}</span></li>`).join("")}</ul>`
+    :`<p>No day in the series covers this module yet.</p>`;
+  return `<aside class="read"><b>Read more · 100 Days of Inference</b>${body}</aside>`;
+}
+function readIndex(){
+  const by={};
+  Object.entries(READ).forEach(([id,r])=>r.forEach(([d])=>{(by[d]=by[d]||[]).push(mods.find(x=>x.id===id))}));
+  return `<div class="sec"><h2>Further reading: 100 Days of Inference</h2>
+  <p><a href="${READ_REPO}" target="_blank" rel="noopener">elizabetht/100-days-of-inference</a> is a day-by-day series with a write-up and notebook per topic, built around Philip Kiely's <i>Inference Engineering</i> (Baseten Books, 2026). Each module links the days that go deeper on its lesson.</p>
+  <div class="tbl"><table><thead><tr><th>Day</th><th>Topic</th><th>Modules</th></tr></thead><tbody>
+  ${Object.keys(DAYS).map(Number).map(d=>`<tr><td class="n">${d}</td><td><a href="${dayUrl(d)}" target="_blank" rel="noopener">${esc(DAYS[d])}</a></td><td>${(by[d]||[]).map(m=>`<a href="#${m.id}">${m.n}</a>`).join(", ")||"—"}</td></tr>`).join("")}
+  </tbody></table></div></div>`;
 }
 function decisionHtml(d){
   const open=d.status==="open";
@@ -90,7 +107,7 @@ function render(){
   if(!u){view.innerHTML=home();rail("home");window.scrollTo(0,0);return}
   let body=unitHead(u);
   if(u.id==="0")body+=ORIENTATION;
-  if(u.id==="A")body+=APPENDIX;
+  if(u.id==="A")body+=APPENDIX+readIndex();
   body+=ITEMS.filter(i=>i.unit===u.id).map(i=>i.kind==="module"?moduleHtml(i):decisionHtml(i)).join("");
   body+=pager(u);
   view.innerHTML=body; rail(u.key);

@@ -38,6 +38,8 @@ If a change makes any statement in these docs untrue, fix the statement, even ou
   and set `status` (`"ready"` = script exists, `"planned"`, `"optional"`). Keep the "Predict before you run"
   questions; never put numbers from a run into the prediction prompts.
 - Every number in the course should match the study note it came from.
+- Further reading per module (elizabetht/100-days-of-inference) lives in `docs/course/src/05b-reading.js`;
+  when a new module is added or the series publishes a new day, update the map there.
 
 ## Other rules
 - Predict before measuring; correctness gates (G0–G2) pass before any study is measured.

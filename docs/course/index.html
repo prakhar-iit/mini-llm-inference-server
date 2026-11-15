@@ -96,6 +96,11 @@ main{padding-block:32px 80px;padding-left:clamp(16px,4vw,56px);padding-right:max
 .obj ul{margin:6px 0 0;padding-left:1.1em}
 .formula{font-family:var(--f-mono);font-size:.88rem;background:var(--panel);border-radius:6px;padding:10px 14px;margin:0 0 1em;overflow-x:auto;white-space:pre;line-height:1.7}
 .example{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:0 0 1em;font-size:.95rem}
+.read{background:var(--accent-soft);border-radius:8px;padding:12px 16px;margin:0 0 1.2em;font-size:.92rem}
+.read>b{display:block;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+.read ul{margin:0;padding-left:1.1em;display:grid;gap:4px}
+.read li span{display:block;color:var(--muted);font-size:.86rem}
+.read p{margin:0;color:var(--muted)}
 .example b:first-child{display:block;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
 figure{margin:8px 0 18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto}
 figure svg{display:block;width:100%;min-width:520px;height:auto}
@@ -1131,6 +1136,80 @@ transfer time            = bytes ÷ link bandwidth</div></div>
 <tr><td>KT3</td><td>Paged decode attention in Triton</td><td>Reads KV through the block table; drops into M5 in place of FlashInfer; measured by MBU</td></tr>
 </tbody></table></div>
 <p>Revisit after Phase 2, or if a target role requires it.</p></div>`;
+/* ---------------- Further reading: 100 Days of Inference ----------------
+   Elizabeth T's day-by-day series (github.com/elizabetht/100-days-of-inference), built around
+   Philip Kiely's "Inference Engineering" (Baseten Books, 2026). Each day is a short write-up plus a notebook.
+   READ maps a module id to [day, note]; the note says what to read the day for. Days 1–26 exist as of
+   2026-11-14; modules with no matching day list none. Add days here as the series grows. */
+const READ_REPO = "https://github.com/elizabetht/100-days-of-inference";
+const DAYS = {
+  1:"LLM inference mechanics: end-to-end text generation",
+  2:"Inference from scratch: model internals and tokenization",
+  3:"Embeddings: from integers to vectors",
+  4:"Transformer blocks and attention",
+  5:"KV cache",
+  6:"Ops:byte ratio and the roofline model",
+  7:"CUDA kernels, kernel selection and kernel fusion",
+  8:"PyTorch, model file formats, ONNX and TensorRT",
+  9:"vLLM: PagedAttention and continuous batching",
+  10:"SGLang: RadixAttention and structured outputs",
+  11:"TensorRT-LLM: compilation and plugins",
+  12:"NVIDIA Dynamo: disaggregated serving",
+  13:"Quantization: number formats (FP8, INT8, INT4, NVFP4)",
+  14:"Quantization algorithms: GPTQ, AWQ, SmoothQuant",
+  15:"Speculative decoding: draft-target, Medusa, EAGLE",
+  16:"Prefix caching, KV memory tiers and cache-aware routing",
+  17:"Model parallelism: tensor, expert, pipeline and data",
+  18:"Disaggregation: prefill/decode split",
+  19:"GPU architecture: SMs, memory hierarchy, HBM",
+  20:"GPU generations: Hopper, Ada, Blackwell, Rubin",
+  21:"Multi-GPU instances and MIG",
+  22:"Containerization: Docker and NVIDIA NIMs",
+  23:"Autoscaling: concurrency, batching and cold starts",
+  24:"Routing, load balancing and queueing",
+  25:"Multi-cloud capacity management",
+  26:"Zero-downtime deployment and cost estimation"
+};
+const dayUrl = d => `${READ_REPO}/tree/main/day${String(d).padStart(2,"0")}`;
+
+const READ = {
+  m1:[[1,"The generate loop and why each step re-reads the whole sequence"],[2,"What is inside the weights; tokenization"],[3,"The embedding lookup, the first stage of the forward pass"],[4,"Attention and the transformer block"]],
+  m2:[[5,"Why the cache removes the repeated work"],[6,"Roofline, balance point, why decode is memory-bound"],[19,"HBM and the memory hierarchy behind the decode floor"]],
+  m3:[[24,"Queueing: Little's law and why wait explodes near full utilisation"]],
+  m4:[[6,"Batching as the lever that moves decode up the roofline"]],
+  m5:[[9,"Continuous batching vs static batching"],[24,"Queues, priorities and deadlines"]],
+  m6:[[9,"PagedAttention: blocks, block tables, fragmentation"],[7,"Kernels and FlashAttention's tiling"],[19,"SRAM vs HBM, why paged kernels must avoid gathers"]],
+  m7:[[16,"Prefix caching and why prompt layout decides the hit rate"],[10,"RadixAttention, SGLang's alternative to block hashes"]],
+  m8:[],
+  m9:[],
+  m10:[[7,"Kernel launch overhead and fusion"],[8,"Compiled runtimes (TensorRT) that remove launches"]],
+  m11:[[13,"FP8, INT8, INT4 and NVFP4 formats"],[14,"GPTQ, AWQ and SmoothQuant"]],
+  m12:[[15,"Draft-target, Medusa and EAGLE; acceptance rate"]],
+  m13:[[9,"vLLM, the engine you compare against"],[10,"SGLang"],[11,"TensorRT-LLM"]],
+  m14:[[17,"Tensor parallelism and the per-layer sync"],[21,"NVLink vs InfiniBand cost of the all-reduce"]],
+  m15:[[17,"Pipeline parallelism and bubbles"]],
+  m16:[[24,"Token-aware and KV-cache-aware routing"],[16,"Cache-aware routing as part of prefix caching"]],
+  m17:[[18,"Prefill/decode split and the KV transfer"],[12,"Dynamo's prefill and decode workers"]],
+  m18:[[16,"KV memory tiers (VRAM, host RAM, SSD) and offload vs re-prefill"]],
+  m19:[[23,"Autoscaling and cold starts"],[26,"Zero-downtime deployment and graceful shutdown"]],
+  m20:[[21,"Multi-GPU instances, NVLink inside vs InfiniBand between nodes"],[20,"Interconnect bandwidth by GPU generation"]],
+  m21:[[17,"Choosing tensor vs pipeline parallelism"],[21,"Why TP stops at the node boundary"]],
+  m22:[[18,"KV transfer size and NIXL"],[12,"Dynamo's KV transfer layer"]],
+  m23:[[24,"Routing across replicas"],[25,"Geo-aware load balancing across sites"]],
+  m24:[[16,"Networked SSD tier and fleet-wide cache"],[12,"Dynamo's KV layer"]],
+  m25:[[16,"Prefix caching as a prompt design problem"]],
+  m26:[[16,"Offload vs re-prefill, the decision prefetch changes"]],
+  m27:[[16,"How production prefix caching behaves"]],
+  m28:[[12,"NVIDIA Dynamo"],[22,"Containers and NIMs"],[23,"Autoscaling on Kubernetes"]],
+  m29:[[26,"$/1M tokens from GPU $/h and throughput"],[25,"Reserved, on-demand and spot supply"]],
+  m30:[],
+  m31:[],
+  m32:[[17,"Expert parallelism"],[10,"SGLang for MoE models"]],
+  m33:[[17,"Expert and data parallelism together"]],
+  m34:[],
+  m35:[[13,"Low-bit formats"],[14,"Weight quantization algorithms"]],
+  m36:[[17,"Why a 671B-class model needs a whole node or more"],[18,"Disaggregation at scale"],[20,"Hopper H100 vs H200"]]
+};
 (function(){
 const store={get(k){try{return localStorage.getItem("iec:"+k)}catch(e){return null}},set(k,v){try{localStorage.setItem("iec:"+k,v)}catch(e){}}};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -1170,6 +1249,7 @@ function moduleHtml(m){
     ${m.example?`<div class="example">${m.example}</div>`:""}
   </div>
   ${d?`<figure>${d.svg}<figcaption>${esc(d.cap)}</figcaption></figure>`:""}
+  ${readHtml(m)}
   <div class="part">Predict before you run</div>
   <div class="predict">${m.predict.map((q,i)=>`<div class="q"><span class="qn">P${i+1}</span><p>${esc(q)}</p><textarea id="${m.id}-q${i}" aria-label="Your prediction ${i+1}" placeholder="A number and a reason">${esc(store.get(m.id+"-q"+i)||"")}</textarea></div>`).join("")}</div>
   <div class="part">Lab on EC2</div>
@@ -1191,6 +1271,22 @@ function moduleHtml(m){
     <label><input type="checkbox" id="${m.id}-lab" ${store.get(m.id+"-lab")==="1"?"checked":""}> Lab done</label>
   </div>
   </article>`;
+}
+function readHtml(m){
+  const r=READ[m.id]||[];
+  const body=r.length
+    ?`<ul>${r.map(([d,note])=>`<li><a href="${dayUrl(d)}" target="_blank" rel="noopener">Day ${d}: ${esc(DAYS[d])}</a><span>${esc(note)}</span></li>`).join("")}</ul>`
+    :`<p>No day in the series covers this module yet.</p>`;
+  return `<aside class="read"><b>Read more · 100 Days of Inference</b>${body}</aside>`;
+}
+function readIndex(){
+  const by={};
+  Object.entries(READ).forEach(([id,r])=>r.forEach(([d])=>{(by[d]=by[d]||[]).push(mods.find(x=>x.id===id))}));
+  return `<div class="sec"><h2>Further reading: 100 Days of Inference</h2>
+  <p><a href="${READ_REPO}" target="_blank" rel="noopener">elizabetht/100-days-of-inference</a> is a day-by-day series with a write-up and notebook per topic, built around Philip Kiely's <i>Inference Engineering</i> (Baseten Books, 2026). Each module links the days that go deeper on its lesson.</p>
+  <div class="tbl"><table><thead><tr><th>Day</th><th>Topic</th><th>Modules</th></tr></thead><tbody>
+  ${Object.keys(DAYS).map(Number).map(d=>`<tr><td class="n">${d}</td><td><a href="${dayUrl(d)}" target="_blank" rel="noopener">${esc(DAYS[d])}</a></td><td>${(by[d]||[]).map(m=>`<a href="#${m.id}">${m.n}</a>`).join(", ")||"—"}</td></tr>`).join("")}
+  </tbody></table></div></div>`;
 }
 function decisionHtml(d){
   const open=d.status==="open";
@@ -1223,7 +1319,7 @@ function render(){
   if(!u){view.innerHTML=home();rail("home");window.scrollTo(0,0);return}
   let body=unitHead(u);
   if(u.id==="0")body+=ORIENTATION;
-  if(u.id==="A")body+=APPENDIX;
+  if(u.id==="A")body+=APPENDIX+readIndex();
   body+=ITEMS.filter(i=>i.unit===u.id).map(i=>i.kind==="module"?moduleHtml(i):decisionHtml(i)).join("");
   body+=pager(u);
   view.innerHTML=body; rail(u.key);
