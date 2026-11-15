@@ -10,7 +10,7 @@ that prediction.
 
     python benchmarks/s2_overhead_queueing.py --base-url http://127.0.0.1:8000 --vocab-size 128256
     python benchmarks/s2_overhead_queueing.py --base-url ... --vocab-size 128256 --per-rate 30 --warmup 0 \\
-        --output-len 8 --rhos 0.3,0.6,0.9  # quick Mac smoke run
+        --output-len 8 --rhos 0.3,0.6,0.9  # quick smoke run
 """
 
 from __future__ import annotations

@@ -7,7 +7,7 @@
 
 Pass criterion: perplexity within 1% of the baseline, and GSM8K accuracy within two standard errors
 (binomial, at the baseline's accuracy and this run's question count). Quality numbers don't depend on
-the GPU, so a Mac baseline is valid; record which device produced it all the same.
+the GPU, so a baseline from any device is valid; record which device produced it all the same.
 """
 
 from __future__ import annotations

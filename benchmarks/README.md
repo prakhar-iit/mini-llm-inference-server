@@ -21,7 +21,7 @@ It is cross-checked against `vllm bench serve` in the GPU session (decision 5).
 |---|---|
 | `workloads.py` | Builds requests as token ids: `random`, A (arXiv), B (UltraChat), C (agent sessions; JSONL save/load) |
 | `client.py` | Open-loop client for any OpenAI-compatible server: gamma arrivals, per-token timestamps, sessions, SLO summary |
-| `s0_no_cache.py` … `s6_shared_prefixes.py` | Study scripts (S0–S6); each docstring has the full and the Mac smoke command |
+| `s0_no_cache.py` … `s6_shared_prefixes.py` | Study scripts (S0–S6); each docstring has the full and the smoke command (g6.xlarge) |
 | `g2_quality.py` | G2 quality gate (perplexity + GSM8K) with baseline save/check |
 
 ```bash
@@ -49,7 +49,7 @@ concurrency at SLO · KV memory per request · prefix-cache hit rate · error/re
 prefill MFU · decode MBU. Each request's TTFT is also split into HTTP, tokenization, queue, prefill
 and emission.
 
-SLO targets are not set yet (plan decision 3).
+SLO targets: TTFT p99 ≤ 3 s (A) / 1 s (B, C), TPOT p99 ≤ 50 ms (decision 3).
 
 ## Output
 

@@ -3,7 +3,7 @@
 **Milestone:** M4 · **Compared against:** git tag `m3` (static batching) · **Date:**
 
 ## Setup
-- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass); MacBook for the shape check
+- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload: Mix, 30% A (8,000 tokens in → 150 out, arXiv) and 70% B (~100 in → 1,000 out, UltraChat), open-loop
   Poisson arrivals at rising rates up to 2–3× M4's knee, ≥ 1,000 requests per rate, 30 s warm-up excluded.
@@ -30,15 +30,6 @@
         Does its TPOT p99 still meet the SLO, or only its median? (M7 chunked prefill is the fix.)
      5. R2: at 2–3× the knee, M4 rejects with 503 once 16 + 64 requests are in flight. Is 64 waiting small enough
         that admitted requests still meet the TTFT SLO (queue ≈ 64 ÷ throughput)? What does M3 do instead? -->
-
-Mac shape check (Llama-3.2-1B, MPS, `--max-batch-size 8 --max-model-len 2048`, random ids, A = 1,024 → 16,
-B = 64 → 128, 30 requests per rate, no warm-up; not for the write-up — p99 of 30 is noise and Mac TPOT is far
-above the SLO, so goodput is ~0 for both):
-- p99 TTFT, M3 → M4: A 22.6 → 1.7 s and B 15.9 → 4.6 s at 0.25 req/s; A 77 → 2.9 s and B 98 → 1.5 s at 0.5 req/s.
-  At 1 req/s both are past the knee (A 182 → 63 s, B 213 → 90 s); nothing was rejected because 30 requests never
-  reached 8 + 64 in flight.
-- The new problem shows up: M4's B ITL max is 1.9–2.1 s below the knee (a whole A prefill), and 51 s at 1 req/s,
-  where one prefill step admits up to 8 A prompts (8 × 1,024 tokens fits the 8,192-token budget).
 
 ## Result
 <table and chart>

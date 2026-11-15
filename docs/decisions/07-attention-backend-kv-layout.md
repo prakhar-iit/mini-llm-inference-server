@@ -2,14 +2,17 @@
 
 **Decided:** 2026-10-18 · **Needed by:** M5 · **Status:** accepted
 
+> **Amended 2026-11-14:** the Mac tier is dropped; nothing runs on the MacBook. Development and the
+> reference backend run on the g6.xlarge (L4).
+
 ## Choice
 - **M5 is built in three stages, all on one KV layout:**
-  - **M5a, paged KV with `TorchRefBackend`** (Mac): block manager, block tables, paged cache, ragged step
+  - **M5a, paged KV with `TorchRefBackend`** (any device): block manager, block tables, paged cache, ragged step
     metadata, eviction by recompute, R3. The reference backend gathers KV through the block table and runs SDPA.
-    It's the only path on the Mac and the correctness oracle for both kernels below.
+    It's the correctness oracle for both kernels below.
   - **M5b, FlashInfer** (CUDA): its paged prefill and decode wrappers read the same pages.
   - **M5c, flash-attn**, using vLLM's fork (`vllm-flash-attn`), whose paged path runs at block size 16 (CUDA).
-  - **Order:** M5a → M5b → M5c → M6, all coded on the Mac. M5b and M5c can't run there: their tests skip
+  - **Order:** M5a → M5b → M5c → M6, all coded before the GPU session. Their tests skip
     without CUDA, and both kernels are first exercised in one GPU session, together with every other GPU check.
 - **Block size: 16 tokens.**
 - **Layout: per layer, separate K and V tensors, each `[num_blocks, 16, Hkv, Dh]` (NHD, token-major inside a
@@ -24,7 +27,7 @@
   new tokens through `slot_mapping` and attends over the cached context through `block_tables`. Whether a row is
   prefill or decode comes from `meta`. The three backends implement exactly this.
 - **KV pool size:** on CUDA, `num_blocks` = (GPU memory × `--gpu-memory-utilization` − weights − peak
-  activations, from a profiling forward at startup) ÷ block bytes. On the Mac, a fixed `--kv-cache-gb`
+  activations, from a profiling forward at startup) ÷ block bytes. Without CUDA, a fixed `--kv-cache-gb`
   (default 1).
 
 ## Numbers behind it
@@ -40,7 +43,7 @@ Bytes per block per layer = 2 (K and V) × 16 × Hkv × Dh × 2 (bf16):
 - M6 (prefix caching) hashes whole blocks. With 16 tokens per block, a shared prefix is reused to within 15 tokens.
 
 ## Why
-- **Three stages:** M5a holds nearly all the logic and is the only stage the Mac can run. Each kernel then drops
+- **Three stages:** M5a holds nearly all the logic and runs on any device. Each kernel then drops
   in behind the same interface and is checked against `TorchRefBackend` on the same GPU, so a kernel bug can't
   hide behind a scheduling bug. The two kernels together give S5 (and S11) a three-way kernel comparison on
   identical pages. Writing both kernels' glue right after M5a, while the interface is fresh, means the one GPU
@@ -76,7 +79,7 @@ Bytes per block per layer = 2 (K and V) × 16 × Hkv × Dh × 2 (bf16):
 - **Kernel code untested until the GPU session:** M5b and M5c are written against the libraries' documented
   APIs and land with skipped tests, and M6 is built before any kernel has touched the pages. The layout was
   chosen to be what both kernels read, but a surprise in the session would mean reworking M5a–M6. Keep the kernel
-  glue thin (the shared interface does the bookkeeping) so most bugs stay findable on the Mac.
+  glue thin (the shared interface does the bookkeeping) so most bugs stay findable with the reference backend.
 - **Two CUDA dependencies:** `flashinfer-python` and `vllm-flash-attn` pin torch/CUDA versions and may not agree.
   If they conflict, M5c installs in its own environment for the GPU session.
 - **D3/N3 transfers gather:** a request's blocks are scattered in the pool, so an 8K prompt on the 8B is 512
@@ -85,8 +88,8 @@ Bytes per block per layer = 2 (K and V) × 16 × Hkv × Dh × 2 (bf16):
 - **HND for mismatched TP degrees:** decision 18 may need HND, because each head's tokens are contiguous inside
   a block, so a TP=8 shard can be resliced for a TP=4 engine. vLLM switches its KV layout to HND for that case.
   Put the layout in the cache key (decision 18) so the two never mix.
-- **The Mac path is slow:** gathering through the block table copies the whole context every step. It's fine
-  for correctness, and Mac numbers never go into a study anyway.
+- **The reference path is slow:** gathering through the block table copies the whole context every step. It's fine
+  for correctness, and S5 part C measures exactly that cost.
 - **The one GPU session (g6.xlarge, about 2–3 hours, after M6):** each kernel's logits vs `TorchRefBackend` on the
   same L4 within G1b's tolerance; `plan()` reuse across layers confirmed in a profile; decode step time of the
   three backends and M4's contiguous slots at batch 1–32.

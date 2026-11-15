@@ -1,0 +1,1233 @@
+<title>Inference Engineering Course</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a course reader. Fixed syllabus rail on the left, one unit per view on the right.
+   Lessons read like a textbook page; labs read like an instrument panel.
+   Colour code used everywhere: amber = compute-bound, teal = memory-bound. */
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --panel:#eceee9; --ink:#15191c; --muted:#5b6469; --line:#d7dbd4;
+  --accent:#1f5f8b; --accent-soft:#e2ecf3;
+  --compute:#b0660a; --compute-soft:#f7ead6; --memory:#0f7a73; --memory-soft:#d9efec;
+  --good:#2f7d3a; --warn:#a86a00; --open:#8a4fb0; --open-soft:#efe5f5;
+  --lab:#1c2328; --lab-ink:#e7ecee; --lab-muted:#9aa7ad; --lab-line:#34404a;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --rail:288px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111518; --surface:#181d21; --panel:#1f262b; --ink:#e6eaec; --muted:#9aa5ab; --line:#2c353b;
+  --accent:#7db4dc; --accent-soft:#1c2b37;
+  --compute:#e9a04a; --compute-soft:#33261a; --memory:#4cc2b7; --memory-soft:#16302e;
+  --good:#6cc278; --warn:#e0a640; --open:#c597e3; --open-soft:#2b2135;
+  --lab:#0b0e10; --lab-ink:#e7ecee; --lab-muted:#8e9ba1; --lab-line:#29333a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111518; --surface:#181d21; --panel:#1f262b; --ink:#e6eaec; --muted:#9aa5ab; --line:#2c353b;
+  --accent:#7db4dc; --accent-soft:#1c2b37;
+  --compute:#e9a04a; --compute-soft:#33261a; --memory:#4cc2b7; --memory-soft:#16302e;
+  --good:#6cc278; --warn:#e0a640; --open:#c597e3; --open-soft:#2b2135;
+  --lab:#0b0e10; --lab-ink:#e7ecee; --lab-muted:#8e9ba1; --lab-line:#29333a; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.62 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+h1,h2,h3,h4{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.wrap{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);min-height:100vh}
+
+/* rail */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);height:calc(100vh - env(safe-area-inset-top,0px));overflow-y:auto;
+  border-right:1px solid var(--line);background:var(--surface);padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px}
+.brand{display:block;text-decoration:none;color:var(--ink);margin-bottom:18px}
+.brand b{font-family:var(--f-display);font-size:1.2rem;display:block;line-height:1.1}
+.brand span{font-size:.78rem;color:var(--muted)}
+.prog{height:6px;background:var(--panel);border-radius:3px;overflow:hidden;margin:6px 0 2px}
+.prog i{display:block;height:100%;background:var(--accent);width:0}
+.progtxt{font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.units{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:2px}
+.units a{display:grid;grid-template-columns:42px 1fr auto;gap:6px;align-items:baseline;padding:7px 8px;border-radius:6px;
+  text-decoration:none;color:var(--ink);font-size:.92rem}
+.units a:hover{background:var(--panel)}
+.units a[aria-current="page"]{background:var(--accent-soft)}
+.units .uid{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.units .ucount{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.sublist{list-style:none;margin:2px 0 8px 50px;padding:0;display:grid;gap:1px}
+.sublist a{display:block;font-size:.82rem;color:var(--muted);text-decoration:none;padding:2px 6px;border-radius:4px}
+.sublist a:hover{color:var(--ink);background:var(--panel)}
+.sublist a.done::after{content:" ✓";color:var(--good)}
+.legend{margin-top:22px;font-size:.78rem;color:var(--muted);display:grid;gap:4px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.menu{display:none}
+
+/* main */
+main{padding-block:32px 80px;padding-left:clamp(16px,4vw,56px);padding-right:max(16px,env(safe-area-inset-right,0px));min-width:0}
+.col{max-width:860px}
+.eyebrow{font:500 .74rem/1 var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.unit-head{display:grid;gap:12px;margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--line)}
+.unit-head h1{font-size:clamp(1.9rem,4.2vw,2.8rem)}
+.unit-head p{margin:0;max-width:66ch;color:var(--muted)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:6px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.fact b{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;margin-bottom:4px}
+.fact span{font-size:.92rem}
+
+/* module */
+.module{margin:44px 0 0;scroll-margin-top:20px}
+.mhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:14px}
+.mnum{font:500 .8rem var(--f-mono);color:var(--accent);background:var(--accent-soft);padding:3px 8px;border-radius:4px}
+.mhead h2{font-size:clamp(1.4rem,3vw,1.85rem);flex:1 1 320px;min-width:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font:500 .72rem var(--f-mono);padding:2px 7px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.c{border-color:var(--compute);color:var(--compute)} .tag.m{border-color:var(--memory);color:var(--memory)}
+.part{font:600 .72rem/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:10px;margin:26px 0 12px}
+.part::after{content:"";flex:1;height:1px;background:var(--line)}
+.lesson{max-width:68ch}
+.lesson p{margin:0 0 .9em}
+.lesson ul{margin:0 0 1em;padding-left:1.2em}
+.lesson li{margin-bottom:.3em}
+.obj{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:.93rem}
+.obj b{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.obj ul{margin:6px 0 0;padding-left:1.1em}
+.formula{font-family:var(--f-mono);font-size:.88rem;background:var(--panel);border-radius:6px;padding:10px 14px;margin:0 0 1em;overflow-x:auto;white-space:pre;line-height:1.7}
+.example{border-left:3px solid var(--accent);padding:4px 0 4px 14px;margin:0 0 1em;font-size:.95rem}
+.example b:first-child{display:block;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+figure{margin:8px 0 18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;overflow-x:auto}
+figure svg{display:block;width:100%;min-width:520px;height:auto}
+figcaption{font-size:.82rem;color:var(--muted);margin-top:8px}
+.predict{display:grid;gap:10px}
+.q{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px 10px;align-items:start}
+.q .qn{font:500 .8rem/1.9 var(--f-mono);color:var(--compute)}
+.q p{margin:0;font-size:.95rem}
+.q textarea{grid-column:2;width:100%;min-height:44px;resize:vertical;font:inherit;font-size:.9rem;padding:8px 10px;border:1px dashed var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.q textarea:focus{border-style:solid;border-color:var(--accent);outline:none}
+
+/* lab panel */
+.lab{background:var(--lab);color:var(--lab-ink);border-radius:10px;padding:18px clamp(14px,3vw,24px);display:grid;gap:14px}
+.lab a{color:#9cc9ea}
+.labtop{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center}
+.labtop h3{font-size:1.12rem}
+.pill{font:500 .72rem var(--f-mono);padding:3px 9px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill.ready{color:#8fd19b} .pill.planned{color:#d6b46a} .pill.optional{color:#c9a3e6}
+.why{margin:0;color:var(--lab-ink);font-size:.95rem}
+.spec{display:grid;grid-template-columns:minmax(90px,140px) minmax(0,1fr);gap:0;border-top:1px solid var(--lab-line);font-size:.88rem}
+.spec div{padding:7px 0;border-bottom:1px solid var(--lab-line);min-width:0}
+.spec div:nth-child(odd){color:var(--lab-muted);font:500 .74rem/1.9 var(--f-mono);text-transform:uppercase;letter-spacing:.06em}
+.spec code{color:#f0d9a8;word-break:break-word}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.metric{border:1px solid var(--lab-line);border-radius:6px;padding:8px 10px;font-size:.85rem;min-width:0}
+.metric b{display:block;font-family:var(--f-mono);font-size:.78rem;color:#9cc9ea;font-weight:500}
+.metric span{color:var(--lab-muted)}
+.expect{border-left:3px solid #d6b46a;padding-left:12px;font-size:.93rem}
+.expect b{color:#d6b46a;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;display:block}
+.measured{border:1px dashed var(--lab-line);border-radius:6px;padding:10px 12px;font-size:.85rem;color:var(--lab-muted);font-family:var(--f-mono)}
+.labh{font:500 .7rem var(--f-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--lab-muted);margin:0 0 6px}
+
+/* takeaway */
+.take{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.take > div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0;font-size:.93rem}
+.take h4{font-size:.95rem;margin-bottom:6px}
+.take ul{margin:0;padding-left:1.1em}
+.nextp{color:var(--muted)}
+.checks{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;font-size:.88rem}
+.checks label{display:flex;gap:6px;align-items:center;cursor:pointer}
+
+/* decision checkpoint */
+.decision{margin:40px 0 0;border:1px solid var(--line);border-radius:10px;padding:14px 18px;background:var(--surface);display:grid;gap:6px}
+.decision.open{border-color:var(--open);background:var(--open-soft)}
+.dtop{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline}
+.dtop .flag{font:500 .74rem var(--f-mono);color:var(--good)}
+.decision.open .flag{color:var(--open)}
+.dtop h3{font-size:1.05rem}
+.decision p{margin:0;font-size:.92rem}
+.decision .rej{color:var(--muted);font-size:.86rem}
+
+/* home + tables */
+.map{display:grid;gap:12px}
+.mapu{display:grid;grid-template-columns:80px minmax(0,1fr);gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;text-decoration:none;color:var(--ink)}
+.mapu:hover{border-color:var(--accent)}
+.mapu .k{font:700 1.6rem var(--f-display);color:var(--accent)}
+.mapu h3{font-size:1.1rem;margin-bottom:4px}
+.mapu p{margin:0 0 8px;font-size:.9rem;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font:500 .7rem var(--f-mono);background:var(--panel);padding:2px 7px;border-radius:4px;color:var(--ink)}
+.tbl{overflow-x:auto;margin:0 0 18px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.88rem;background:var(--surface)}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--panel)}
+td.n{font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:.82rem;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.sec{margin:36px 0 0}
+.sec h2{font-size:1.4rem;margin-bottom:12px}
+.sec > p{max-width:68ch}
+.steps{counter-reset:s;list-style:none;padding:0;display:grid;gap:8px;max-width:70ch}
+.steps li{counter-increment:s;display:grid;grid-template-columns:30px 1fr;gap:8px}
+.steps li::before{content:counter(s);font:500 .8rem/1.9 var(--f-mono);color:var(--accent)}
+.pager{display:flex;justify-content:space-between;gap:12px;margin-top:56px;padding-top:20px;border-top:1px solid var(--line);flex-wrap:wrap}
+.pager a{text-decoration:none;font-weight:500}
+.gloss{display:grid;grid-template-columns:minmax(120px,200px) minmax(0,1fr);gap:6px 18px;font-size:.92rem}
+.gloss dt{font-family:var(--f-mono);font-size:.84rem;font-weight:500}
+.gloss dd{margin:0;color:var(--muted)}
+
+/* svg tokens */
+.s-ink{fill:var(--ink)} .s-mut{fill:var(--muted)} .s-line{stroke:var(--line)} .s-axis{stroke:var(--muted)}
+.s-c{fill:var(--compute)} .s-cs{fill:var(--compute-soft)} .s-cst{stroke:var(--compute)}
+.s-m{fill:var(--memory)} .s-ms{fill:var(--memory-soft)} .s-mst{stroke:var(--memory)}
+.s-a{fill:var(--accent)} .s-as{fill:var(--accent-soft)} .s-ast{stroke:var(--accent)}
+.s-p{fill:var(--panel)} .s-sf{fill:var(--surface)} .s-o{fill:var(--open)}
+svg text{font-family:var(--f-mono);font-size:11px}
+svg .t-lg{font-size:13px;font-family:var(--f-body);font-weight:600}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  .rail{position:fixed;inset:0 auto 0 0;width:min(320px,86vw);z-index:40;transform:translateX(-102%);transition:transform .2s;
+    height:100%;padding-top:calc(20px + env(safe-area-inset-top,0px))}
+  .rail.openr{transform:none;box-shadow:0 0 40px rgba(0,0,0,.25)}
+  .menu{display:flex;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line);
+    padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+    align-items:center;gap:12px}
+  .menu button{font:inherit;font-size:.88rem;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:6px 12px;cursor:pointer}
+  .menu span{font-family:var(--f-display);font-weight:700}
+  main{padding-top:20px}
+}
+@media (max-width:520px){ .spec{grid-template-columns:minmax(0,1fr)} .spec div:nth-child(odd){border-bottom:0;padding-bottom:0} .mapu{grid-template-columns:minmax(0,1fr)} .gloss{grid-template-columns:minmax(0,1fr)} }
+@media (prefers-reduced-motion:reduce){ .rail{transition:none} html{scroll-behavior:auto} }
+html{scroll-behavior:smooth}
+</style>
+
+<div class="menu"><button id="menuBtn" type="button" aria-controls="rail" aria-expanded="false">Syllabus</button><span>Inference Engineering</span></div>
+<div class="wrap">
+  <nav class="rail" id="rail" aria-label="Syllabus">
+    <a class="brand" href="#home"><b>Inference Engineering</b><span>Build an LLM server, then take it distributed</span></a>
+    <div class="prog"><i id="progBar"></i></div>
+    <div class="progtxt" id="progTxt">0 of 0 modules done</div>
+    <ul class="units" id="unitList"></ul>
+    <div class="legend">
+      <div><span class="sw" style="background:var(--compute)"></span>Compute-bound idea</div>
+      <div><span class="sw" style="background:var(--memory)"></span>Memory-bound idea</div>
+      <div><span class="sw" style="background:var(--open)"></span>Open decision</div>
+    </div>
+  </nav>
+  <main id="main"><div class="col" id="view"></div></main>
+</div>
+<script>
+const DIAG = {
+roofline:{cap:"Roofline. Left of the balance point the GPU waits on memory; right of it, on arithmetic. Decode at batch 1 sits far left; a long prefill sits on the flat roof.",svg:`<svg viewBox="0 0 640 250" role="img" aria-label="Roofline diagram">
+<rect x="60" y="30" width="270" height="170" class="s-ms"/><rect x="330" y="30" width="270" height="170" class="s-cs"/>
+<line x1="60" y1="200" x2="600" y2="200" class="s-axis" stroke-width="1.5"/><line x1="60" y1="200" x2="60" y2="25" class="s-axis" stroke-width="1.5"/>
+<polyline points="60,190 330,55 600,55" fill="none" class="s-ast" stroke-width="3"/>
+<line x1="330" y1="55" x2="330" y2="200" class="s-axis" stroke-dasharray="4 4"/>
+<circle cx="88" cy="176" r="6" class="s-m"/><text x="100" y="172" class="s-ink">decode, batch 1 (~1 FLOP/byte)</text>
+<circle cx="250" cy="95" r="6" class="s-m"/><text x="140" y="118" class="s-ink">decode, batch 64</text>
+<circle cx="520" cy="55" r="6" class="s-c"/><text x="455" y="45" class="s-ink">prefill 4K tokens</text>
+<text x="70" y="45" class="s-m t-lg">memory-bound</text><text x="480" y="190" class="s-c t-lg">compute-bound</text>
+<text x="338" y="190" class="s-mut">balance point ≈ peak FLOP/s ÷ bandwidth</text>
+<text x="300" y="225" class="s-mut">arithmetic intensity (FLOPs per byte read), log scale →</text>
+<text x="18" y="120" class="s-mut" transform="rotate(-90 18 120)">achieved FLOP/s →</text>
+</svg>`},
+prefilldecode:{cap:"One request over time. Prefill pushes every prompt token through the model in one pass; decode then makes one pass per output token, each re-reading all the weights.",svg:`<svg viewBox="0 0 640 170" role="img" aria-label="Prefill then decode timeline">
+<line x1="40" y1="120" x2="610" y2="120" class="s-axis"/>
+<rect x="40" y="50" width="170" height="60" rx="4" class="s-c"/><text x="52" y="85" class="t-lg" fill="#fff">prefill: 4,096 tokens</text>
+<g class="s-m">${Array.from({length:22},(_,i)=>`<rect x="${218+i*17.5}" y="70" width="13" height="40" rx="2"/>`).join("")}</g>
+<text x="300" y="60" class="s-ink">decode: 1 token per step</text>
+<line x1="210" y1="130" x2="210" y2="142" class="s-axis"/><text x="150" y="158" class="s-mut">TTFT ends here</text>
+<text x="420" y="145" class="s-mut">gap between bars = ITL / TPOT</text>
+<text x="40" y="30" class="s-mut">compute-bound: many tokens share one weight read</text><text x="360" y="30" class="s-mut">memory-bound: weights read per token</text>
+</svg>`},
+queue:{cap:"Mean wait grows as ρ/(1−ρ). Fine at half load, explosive near 1. ρ = arrival rate × service time.",svg:`<svg viewBox="0 0 640 240" role="img" aria-label="Queueing delay curve">
+<line x1="60" y1="200" x2="600" y2="200" class="s-axis"/><line x1="60" y1="200" x2="60" y2="20" class="s-axis"/>
+<polyline fill="none" class="s-ast" stroke-width="3" points="${Array.from({length:46},(_,i)=>{const r=i/50;const w=Math.min(r/(2*(1-r)),9);return `${60+r*540},${200-w*19}`}).join(" ")}"/>
+<line x1="60" y1="120" x2="600" y2="120" class="s-cst" stroke-dasharray="5 4"/><text x="70" y="113" class="s-c">p99 TTFT SLO</text>
+<line x1="546" y1="200" x2="546" y2="30" class="s-axis" stroke-dasharray="3 4"/><text x="552" y="45" class="s-mut">ρ = 0.9</text>
+<text x="60" y="218" class="s-mut">0</text><text x="324" y="218" class="s-mut">0.5</text><text x="592" y="218" class="s-mut">1</text>
+<text x="250" y="236" class="s-mut">utilisation ρ →</text><text x="18" y="130" class="s-mut" transform="rotate(-90 18 130)">queue wait →</text>
+</svg>`},
+batching:{cap:"Static batching holds every slot until the longest request finishes (hatched = wasted rows). Continuous batching refills a slot the step after it frees.",svg:`<svg viewBox="0 0 640 260" role="img" aria-label="Static vs continuous batching">
+<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="s-axis" stroke-width="2"/></pattern></defs>
+<text x="20" y="22" class="t-lg s-ink">Static (M3)</text>
+${[[200],[90],[140],[60]].map((r,i)=>`<rect x="110" y="${32+i*24}" width="${r[0]}" height="18" class="s-m"/><rect x="${110+r[0]}" y="${32+i*24}" width="${200-r[0]}" height="18" fill="url(#hatch)"/>`).join("")}
+${[[120],[170],[80],[110]].map((r,i)=>`<rect x="314" y="${32+i*24}" width="${r[0]}" height="18" class="s-a"/><rect x="${314+r[0]}" y="${32+i*24}" width="${170-r[0]}" height="18" fill="url(#hatch)"/>`).join("")}
+<text x="20" y="150" class="t-lg s-ink">Continuous (M4)</text>
+${[[[200,"m"]],[[90,"m"],[120,"a"]],[[140,"m"],[170,"a"]],[[60,"m"],[80,"a"],[110,"m"]]].map((row,i)=>{let x=110;return row.map(([w,c])=>{const s=`<rect x="${x}" y="${160+i*24}" width="${w}" height="18" class="s-${c}"/>`;x+=w+4;return s}).join("")}).join("")}
+${[0,1,2,3].map(i=>`<text x="40" y="${46+i*24}" class="s-mut">slot ${i}</text><text x="40" y="${174+i*24}" class="s-mut">slot ${i}</text>`).join("")}
+<text x="500" y="200" class="s-mut">same work,</text><text x="500" y="214" class="s-mut">finishes sooner</text>
+</svg>`},
+paged:{cap:"Contiguous slots reserve max_model_len per request, so most of each slot is empty. Paged KV hands out 16-token blocks on demand; only the last block of each request is partly empty.",svg:`<svg viewBox="0 0 640 250" role="img" aria-label="Contiguous versus paged KV memory">
+<text x="20" y="22" class="t-lg s-ink">Contiguous slots (M4)</text>
+${[0.18,0.5,0.1].map((f,i)=>`<rect x="20" y="${34+i*26}" width="280" height="20" class="s-p"/><rect x="20" y="${34+i*26}" width="${280*f}" height="20" class="s-m"/>`).join("")}
+<text x="20" y="128" class="s-mut">3 requests fit; most reserved memory is empty</text>
+<text x="340" y="22" class="t-lg s-ink">Paged pool (M5)</text>
+${Array.from({length:60},(_,i)=>{const c=["m","a","c","m","a","c","o"][i%7];const used=i<52;return `<rect x="${340+(i%12)*23}" y="${34+Math.floor(i/12)*22}" width="19" height="18" rx="2" class="${used?"s-"+c:"s-p"}"/>`}).join("")}
+<text x="340" y="160" class="s-mut">7 requests share one pool; colour = owner</text>
+<text x="20" y="190" class="s-ink">block table, request A:</text>
+${[12,3,40,7].map((b,i)=>`<rect x="${190+i*50}" y="176" width="44" height="22" rx="3" class="s-ms"/><text x="${200+i*50}" y="191" class="s-ink">#${b}</text>`).join("")}
+<text x="20" y="226" class="s-mut">logical token positions map to physical blocks anywhere in the pool; the kernel reads through the table</text>
+</svg>`},
+hashchain:{cap:"Each full 16-token block's hash covers its parent's hash, so equal hashes mean equal prefixes. Two requests sharing a system prompt reuse the same physical blocks.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Chained block hashes">
+<rect x="20" y="78" width="70" height="40" rx="4" class="s-p"/><text x="30" y="96" class="s-mut">root</text><text x="30" y="110" class="s-mut">salt</text>
+${["h1","h2","h3"].map((h,i)=>`<line x1="${90+i*110}" y1="98" x2="${110+i*110}" y2="98" class="s-axis" stroke-width="1.5"/><rect x="${110+i*110}" y="78" width="90" height="40" rx="4" class="s-ms"/><text x="${122+i*110}" y="96" class="s-ink">${h}</text><text x="${122+i*110}" y="110" class="s-mut">ref 2</text>`).join("")}
+<line x1="420" y1="98" x2="450" y2="50" class="s-axis" stroke-width="1.5"/><line x1="420" y1="98" x2="450" y2="146" class="s-axis" stroke-width="1.5"/>
+<rect x="450" y="30" width="90" height="40" rx="4" class="s-cs"/><text x="462" y="48" class="s-ink">h4a</text><text x="462" y="62" class="s-mut">ref 1</text>
+<rect x="450" y="126" width="90" height="40" rx="4" class="s-as"/><text x="462" y="144" class="s-ink">h4b</text><text x="462" y="158" class="s-mut">ref 1</text>
+<text x="552" y="54" class="s-mut">req A</text><text x="552" y="150" class="s-mut">req B</text>
+<text x="110" y="150" class="s-mut">h_i = SHA-256(h_(i−1) ‖ 16 token ids)</text><text x="110" y="62" class="s-ink">shared system prompt: computed once</text>
+</svg>`},
+stall:{cap:"Continuous batching, one decoding user's view. Each A prefill step pauses every running decode: one ITL gap of ~0.85 s. Averaged over 1,000 tokens it barely moves TPOT.",svg:`<svg viewBox="0 0 640 200" role="img" aria-label="Prefill stall in continuous batching">
+<text x="20" y="24" class="t-lg s-ink">Engine steps (M4)</text>
+${Array.from({length:6},(_,i)=>`<rect x="${20+i*24}" y="36" width="20" height="30" rx="2" class="s-m"/>`).join("")}
+<rect x="166" y="36" width="190" height="30" rx="2" class="s-c"/><text x="178" y="56" fill="#fff">A prefill, 8K tokens</text>
+${Array.from({length:10},(_,i)=>`<rect x="${362+i*24}" y="36" width="20" height="30" rx="2" class="s-m"/>`).join("")}
+<text x="20" y="104" class="t-lg s-ink">B request's tokens</text>
+${Array.from({length:6},(_,i)=>`<circle cx="${30+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
+${Array.from({length:10},(_,i)=>`<circle cx="${372+i*24}" cy="122" r="5" class="s-m"/>`).join("")}
+<line x1="150" y1="140" x2="372" y2="140" class="s-cst" stroke-width="2"/><line x1="150" y1="134" x2="150" y2="146" class="s-cst" stroke-width="2"/><line x1="372" y1="134" x2="372" y2="146" class="s-cst" stroke-width="2"/>
+<text x="190" y="160" class="s-c">one ITL gap ≈ 0.85 s</text>
+<text x="20" y="188" class="s-mut">ITL p99 sees the gap · TPOT = total decode time ÷ tokens averages it away</text>
+</svg>`},
+chunked:{cap:"Without chunking, one 8K prefill step stalls every decoding user. With a token budget, the prefill is cut into chunks that share steps with decodes.",svg:`<svg viewBox="0 0 640 210" role="img" aria-label="Chunked prefill timeline">
+<text x="20" y="24" class="t-lg s-ink">No chunking (M4)</text>
+${Array.from({length:4},(_,i)=>`<rect x="${20+i*26}" y="36" width="22" height="34" rx="2" class="s-m"/>`).join("")}
+<rect x="126" y="36" width="230" height="34" rx="2" class="s-c"/><text x="160" y="58" fill="#fff">8K prefill: decodes wait</text>
+${Array.from({length:9},(_,i)=>`<rect x="${360+i*26}" y="36" width="22" height="34" rx="2" class="s-m"/>`).join("")}
+<text x="20" y="118" class="t-lg s-ink">Chunked, 2,048-token budget (M7)</text>
+${Array.from({length:4},(_,i)=>`<rect x="${20+i*26}" y="130" width="22" height="34" rx="2" class="s-m"/>`).join("")}
+${Array.from({length:4},(_,i)=>`<rect x="${126+i*66}" y="130" width="40" height="34" rx="2" class="s-c"/><rect x="${168+i*66}" y="130" width="22" height="34" rx="2" class="s-m"/>`).join("")}
+${Array.from({length:6},(_,i)=>`<rect x="${392+i*26}" y="130" width="22" height="34" rx="2" class="s-m"/>`).join("")}
+<text x="20" y="190" class="s-mut">p99 ITL drops from one whole prefill to one chunk; TTFT for the long prompt rises a little</text>
+</svg>`},
+spec:{cap:"A cheap drafter proposes k tokens; the target model checks all of them in one pass and keeps the longest correct run plus one token of its own.",svg:`<svg viewBox="0 0 640 190" role="img" aria-label="Speculative decoding">
+<text x="20" y="26" class="t-lg s-ink">draft (n-gram or 1B)</text>
+${["the","cat","sat","on"].map((t,i)=>`<rect x="${20+i*74}" y="38" width="66" height="30" rx="4" class="s-as"/><text x="${32+i*74}" y="58" class="s-ink">${t}</text>`).join("")}
+<text x="340" y="58" class="s-mut">k = 4 guesses, cheap</text>
+<text x="20" y="104" class="t-lg s-ink">verify (8B, one forward pass over all 4)</text>
+${[["the","m"],["cat","m"],["sat","m"],["a","c"]].map(([t,c],i)=>`<rect x="${20+i*74}" y="116" width="66" height="30" rx="4" class="s-${c}"/><text x="${32+i*74}" y="136" fill="#fff">${t}</text>`).join("")}
+<text x="340" y="128" class="s-mut">3 accepted + 1 corrected token</text><text x="340" y="144" class="s-mut">= 4 tokens for one target pass</text>
+<text x="20" y="176" class="s-mut">greedy output stays exactly the same as without speculation (G0)</text>
+</svg>`},
+tp:{cap:"Tensor parallelism splits each layer's matrices across GPUs. Column-split then row-split needs one all-reduce per block: two per transformer layer.",svg:`<svg viewBox="0 0 640 210" role="img" aria-label="Tensor parallel split">
+<rect x="20" y="80" width="60" height="50" rx="4" class="s-p"/><text x="32" y="110" class="s-ink">x</text>
+${[0,1].map(g=>`<rect x="${130}" y="${40+g*80}" width="110" height="50" rx="4" class="s-ms"/><text x="${140}" y="${62+g*80}" class="s-ink">GPU ${g}: W1 cols</text><text x="${140}" y="${78+g*80}" class="s-mut">half the heads</text>
+<rect x="${280}" y="${40+g*80}" width="110" height="50" rx="4" class="s-ms"/><text x="${290}" y="${62+g*80}" class="s-ink">GPU ${g}: W2 rows</text><text x="${290}" y="${78+g*80}" class="s-mut">partial sum</text>
+<line x1="80" y1="105" x2="130" y2="${65+g*80}" class="s-axis"/><line x1="240" y1="${65+g*80}" x2="280" y2="${65+g*80}" class="s-axis"/><line x1="390" y1="${65+g*80}" x2="440" y2="105" class="s-axis"/>`).join("")}
+<rect x="440" y="80" width="110" height="50" rx="4" class="s-c"/><text x="452" y="102" fill="#fff">all-reduce</text><text x="452" y="118" fill="#fff">NCCL</text>
+<line x1="550" y1="105" x2="600" y2="105" class="s-axis"/><text x="580" y="98" class="s-ink">y</text>
+<text x="20" y="196" class="s-mut">attention block + MLP block per layer → 2 all-reduces per layer, on the critical path of every step</text>
+</svg>`},
+pd:{cap:"Prefill/decode disaggregation: a prefill worker builds the KV cache and ships it, block by block, to a decode worker. Decoders never stall on a long prompt.",svg:`<svg viewBox="0 0 640 190" role="img" aria-label="Prefill decode disaggregation">
+<rect x="20" y="60" width="90" height="50" rx="4" class="s-p"/><text x="34" y="90" class="s-ink">router</text>
+<rect x="160" y="40" width="150" height="90" rx="6" class="s-cs"/><text x="174" y="64" class="t-lg s-c">prefill GPU</text><text x="174" y="84" class="s-ink">compute-bound</text><text x="174" y="100" class="s-mut">big batches of tokens</text>
+<rect x="450" y="40" width="160" height="90" rx="6" class="s-ms"/><text x="464" y="64" class="t-lg s-m">decode GPU</text><text x="464" y="84" class="s-ink">memory-bound</text><text x="464" y="100" class="s-mut">many concurrent users</text>
+<line x1="110" y1="85" x2="160" y2="85" class="s-axis" stroke-width="1.5"/>
+${Array.from({length:5},(_,i)=>`<rect x="${322+i*24}" y="76" width="18" height="18" rx="2" class="s-a"/>`).join("")}
+<text x="322" y="68" class="s-ink">KV blocks</text><text x="322" y="112" class="s-mut">NCCL / NIXL</text>
+<text x="20" y="168" class="s-mut">pays when transfer time ≪ interference it removes; compare against chunked prefill, not plain M4</text>
+</svg>`},
+tiers:{cap:"KV tiers on one node. Each step down holds more and moves slower. Fetch beats recompute when bytes ÷ bandwidth < prefill time for those tokens.",svg:`<svg viewBox="0 0 640 220" role="img" aria-label="KV cache tiers">
+${[["GPU HBM","~80 GB","~2–3 TB/s","s-ms"],["CPU DRAM","~1–2 TB","~25–50 GB/s (PCIe)","s-as"],["Local NVMe","~8–30 TB","~2–7 GB/s per drive","s-cs"]].map(([n,c,b,cl],i)=>`<rect x="${40+i*30}" y="${20+i*62}" width="${300+i*120}" height="50" rx="5" class="${cl}"/><text x="${56+i*30}" y="${42+i*62}" class="t-lg s-ink">${n}</text><text x="${56+i*30}" y="${60+i*62}" class="s-mut">${c} · ${b}</text>`).join("")}
+<text x="470" y="60" class="s-ink">evict idle session</text><text x="470" y="76" class="s-mut">(agent tool call)</text>
+<text x="470" y="120" class="s-ink">restore on resume</text>
+<text x="40" y="210" class="s-mut">score = recompute cost (∝ prefix length) × reuse probability</text>
+</svg>`},
+moe:{cap:"Expert parallelism, drawn with Kimi K2's 384 experts over 4 GPUs (96 each). Each token's router picks 8; an all-to-all sends tokens to the GPUs holding them and a second brings results back, every MoE layer.",svg:`<svg viewBox="0 0 640 220" role="img" aria-label="MoE all-to-all">
+${[0,1,2,3].map(g=>`<rect x="20" y="${20+g*46}" width="120" height="36" rx="4" class="s-ms"/><text x="30" y="${42+g*46}" class="s-ink">GPU ${g} tokens</text>
+<rect x="480" y="${20+g*46}" width="140" height="36" rx="4" class="s-cs"/><text x="490" y="${42+g*46}" class="s-ink">experts ${g*96}–${g*96+95}</text>`).join("")}
+${[[0,2],[0,3],[1,0],[1,3],[2,1],[2,2],[3,0],[3,1]].map(([a,b])=>`<line x1="140" y1="${38+a*46}" x2="480" y2="${38+b*46}" class="s-ast" stroke-width="1.2" opacity=".7"/>`).join("")}
+<rect x="270" y="80" width="90" height="28" rx="4" class="s-sf"/><text x="278" y="98" class="s-ink">dispatch</text>
+<text x="20" y="210" class="s-mut">combine = the same pattern in reverse · stragglers (hot experts) set the step time</text>
+</svg>`}
+};
+const FIRST = "g6.xlarge (1× L4 24 GB), Llama-3.2-1B, bf16";
+const OFFICIAL = "p4de (A100 80 GB) or p5 (H100), Llama-3.1-8B, bf16";
+
+const UNITS = [
+{id:"0",key:"unit-0",title:"Orientation",short:"How the course works",
+ goal:"Learn how every module is built (lesson, prediction, lab, takeaway), what hardware and models we use, and which tests guard every measurement.",
+ outcome:"You can read any later module and know what it is testing, on which instance, against which baseline."},
+{id:"1a",key:"unit-1a",title:"Core engine → v1",short:"M0–M6 on one GPU",
+ goal:"Build a working LLM server from a bare generation loop up to paged KV and prefix caching, and measure what each step buys.",
+ outcome:"Tag v1: gates G0–G2 and R1–R4 green, S0–S6 measured on A100/H100, README charts and one write-up. Inference-platform applications open here.",
+ facts:[["Milestones","M0 → M6, all built and tagged m0–m6"],["Studies","S0–S6, scripts written, pending EC2 runs"],["Hardware","L4 first pass, A100/H100 official"],["Model","Llama-3.2-1B dev, Llama-3.1-8B studies"]]},
+{id:"1b",key:"unit-1b",title:"Optimizations → v1.1",short:"M7–M10 + vs vLLM",
+ goal:"Add the four optimizations production engines ship with, each as its own measured study, then compare the whole engine with vLLM.",
+ outcome:"Tag v1.1: S0–S10 rerun on A100/H100, R4 soak rerun, and an honest gap analysis against vLLM (S11).",
+ facts:[["Milestones","M7 chunked prefill, M8 CUDA graphs, M9 quantization, M10 speculative decoding"],["Hard gates","G2 for M9, exact G0 for M10"],["Hardware","A100/H100"],["Status","Planned"]]},
+{id:"2",key:"unit-2",title:"Distributed, one node",short:"TP, router, P/D, tiers",
+ goal:"Take the engine across the GPUs of one 8-GPU node: split a model, route between replicas, separate prefill from decode, and tier the KV cache.",
+ outcome:"Measured answers to when each multi-GPU technique pays, on the agent workload, with every run matching TP=1 output (G1).",
+ facts:[["Builds","D1 TP, D1b PP (optional), D2 router, D3 P/D, D4 KV tiering, D5 reliability"],["Dev hardware","g6.12xlarge (4× L4) for correctness"],["Perf hardware","p4/p5 (NVLink)"],["Status","Planned"]]},
+{id:"3",key:"unit-3",title:"Multi-node and cluster caching",short:"EFA, N1–N4, P1–P4",
+ goal:"Cross the node boundary, where bandwidth drops by about 10×, and build prompt caching that works across the cluster.",
+ outcome:"The TP-inside / replicas-across rule confirmed or broken with numbers, a measured fetch-vs-recompute crossover, and a cluster KV cache with agent prefetch.",
+ facts:[["Model","Llama-3.3-70B"],["Hardware","2× cheap GPU nodes (N1), then 2× p4d/p5 over EFA"],["Cache layers","engine → node tiers → cluster → product"],["Status","Planned"]]},
+{id:"4",key:"unit-4",title:"Production stacks",short:"llm-d / Dynamo, cost",
+ goal:"Check the home-built system against production tooling and real prices.",
+ outcome:"A gap analysis against vLLM + llm-d or Dynamo on EKS, and cost per 1,000 papers self-hosted vs Bedrock, with the break-even utilisation.",
+ facts:[["Stack","EKS, vLLM, llm-d or NVIDIA Dynamo"],["Cost study","p4/p5 + vLLM vs Bedrock real-time vs batch"],["Optional","Trainium/Inferentia via Neuron"],["Status","Planned"]]},
+{id:"5",key:"unit-5",title:"Kimi K2 capstone",short:"MLA, MoE, EP",
+ goal:"Serve a 1T-parameter MoE model (32B active) on the same engine across 1–2 nodes: a small version of LMSYS's 128-GPU deployment.",
+ outcome:"Kimi K2 decode throughput on your engine and a gap analysis against SGLang/vLLM on the same hardware.",
+ facts:[["Dev model","Moonlight-16B-A3B (same architecture)"],["Target","Kimi K2.x INT4, ~594 GB"],["Hardware","1× p5en or 2× p5"],["Status","Planned"]]},
+{id:"A",key:"unit-appendix",title:"Reference",short:"Formulas, GPUs, decisions",
+ goal:"Everything you reach for while predicting: formulas, hardware numbers, the decision log, the glossary.",outcome:""}
+];
+
+const ORIENTATION = `
+<div class="sec"><h2>Why build your own engine</h2>
+<p>Stock vLLM already has paged KV, continuous batching, CUDA graphs, chunked prefill and prefix caching switched on. Toggling them measures small deltas on someone else's design. Here you build the server one optimization at a time, and every step is measured against your own previous version, so each gain has a cause you wrote.</p></div>
+<div class="sec"><h2>How every module works</h2>
+<ol class="steps">
+<li><div><b>Lesson.</b> The concept in plain words, then the formula, then a worked example with real numbers.</div></li>
+<li><div><b>Predict before you run.</b> Questions you answer from the lesson's formulas. Write a number and a reason. Your answers are kept in this browser.</div></li>
+<li><div><b>Pass the gates.</b> Correctness tests (G0–G2) run before anything is measured. A speedup on wrong output is not a result.</div></li>
+<li><div><b>Lab on EC2.</b> Run the study against the previous milestone's git tag, same workload, same hardware. Capture one profile (PyTorch profiler, Nsight Systems).</div></li>
+<li><div><b>Explain the gap.</b> Compare measured with predicted and explain the difference using the profile. Most of the learning happens here.</div></li>
+<li><div><b>Record it.</b> <code>docs/studies/SN-name.md</code>: setup, prediction, chart, result, one paragraph of explanation.</div></li>
+</ol></div>
+<div class="sec"><h2>Hardware: EC2 only</h2>
+<p>Every run, including first-pass checks, happens on EC2. Scripts are ready before an instance starts, and each session runs a batch of studies.</p>
+<div class="tbl"><table><thead><tr><th>Tier</th><th>Instance</th><th>Used for</th></tr></thead><tbody>
+<tr><td>First pass</td><td>g6.xlarge (1× L4 24 GB)</td><td>CUDA path, kernel integration, study dry runs on Llama-3.2-1B</td></tr>
+<tr><td>Multi-GPU correctness</td><td>g6.12xlarge (4× L4, PCIe)</td><td>D1–D3 correctness, Moonlight-16B (Phase 5)</td></tr>
+<tr><td>Official numbers</td><td>p4d / p4de (A100), p5 (H100)</td><td>S0–S10 reruns, Phase 2 performance, Phase 3 multi-node</td></tr>
+<tr><td>Capstone</td><td>p5en (8× H200) or 2× p5</td><td>Kimi K2 (K0, K6)</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Models</h2>
+<div class="tbl"><table><thead><tr><th>Model</th><th>Role</th><th>KV per token</th></tr></thead><tbody>
+<tr><td>Llama-3.2-1B</td><td>First-pass runs, draft model for M10, small-model side of S8</td><td class="n">32 KB</td></tr>
+<tr><td>Llama-3.1-8B</td><td>Every official study in Phases 1–2</td><td class="n">128 KB</td></tr>
+<tr><td>Llama-3.3-70B</td><td>Phase 3 multi-node layouts</td><td class="n">320 KB bf16 · 160 KB fp8</td></tr>
+<tr><td>Moonlight-16B-A3B</td><td>Phase 5 development (DeepSeek-V3 architecture)</td><td class="n">MLA latent</td></tr>
+<tr><td>Kimi K2.x</td><td>Phase 5 target: 1T total, 32B active</td><td class="n">≈ 69 KB</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Workloads</h2>
+<div class="tbl"><table><thead><tr><th>Workload</th><th>Shape</th><th>Data</th><th>Stresses</th></tr></thead><tbody>
+<tr><td>A · Summarize</td><td class="n">~8,000 in → ~150 out</td><td>arXiv papers</td><td>Prefill (compute)</td></tr>
+<tr><td>B · Generate</td><td class="n">~100 in → ~1,000 out</td><td>UltraChat-200k</td><td>Decode (memory)</td></tr>
+<tr><td>C · Agent</td><td class="n">~3.5K shared prefix, ~6 turns</td><td>Seeded synthetic generator (decision 2)</td><td>Prefix reuse, sessions, bursts</td></tr>
+<tr><td>Mix</td><td class="n">30% A / 70% B</td><td>Both</td><td>Fairness, head-of-line blocking, interference</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Service-level objectives</h2>
+<p>Fixed once (decision 3) so every study is comparable. <b>Goodput</b> is requests per second that meet both targets.</p>
+<div class="tbl"><table><thead><tr><th>Metric</th><th>A</th><th>B, C</th></tr></thead><tbody>
+<tr><td>TTFT p99</td><td class="n">≤ 3 s</td><td class="n">≤ 1 s</td></tr>
+<tr><td>TPOT p99</td><td class="n">≤ 50 ms</td><td class="n">≤ 50 ms</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Tests that guard every measurement</h2>
+<p>Each starts at one milestone and reruns at every later one.</p>
+<div class="tbl"><table><thead><tr><th>Test</th><th>From</th><th>Checks</th><th>Passes when</th></tr></thead><tbody>
+<tr><td>G0</td><td>M0</td><td>Greedy tokens vs Hugging Face, batch 1, same device</td><td>Identical tokens on short, long, multilingual and code prompts</td></tr>
+<tr><td>G1a</td><td>M3</td><td>Batched vs batch-1 in fp32</td><td>Identical tokens, logits within 1e-4</td></tr>
+<tr><td>G1b</td><td>M3, M5, D1</td><td>Batched vs batch-1 in bf16, teacher-forced logits</td><td>KL and max logit diff ≤ 2× HF's own batch noise; top-1 agrees where margin &gt; 0.5</td></tr>
+<tr><td>G2</td><td>M1</td><td>WikiText-2 perplexity + ~200 GSM8K questions</td><td>Within noise of the HF baseline; hard gate for M9 and K5</td></tr>
+<tr><td>R1</td><td>M2</td><td>Clients disconnect mid-stream</td><td>Request leaves the scheduler; from M5 its blocks are freed</td></tr>
+<tr><td>R2</td><td>M4</td><td>2–3× the load at the knee</td><td>Bounded queue, 429/503 rejections, no OOM; admitted goodput holds</td></tr>
+<tr><td>R3</td><td>M5</td><td>KV block accounting after every run</td><td>free + used = total; refcounts return to zero (M6)</td></tr>
+<tr><td>R4</td><td>v1</td><td>1–2 hour soak on Mix + C</td><td>No memory growth or leaks; p99 drift under 10%</td></tr>
+</tbody></table></div></div>`;
+
+const ITEMS = [];
+const M = o => ITEMS.push(Object.assign({kind:"module"},o));
+const D = o => ITEMS.push(Object.assign({kind:"decision"},o));
+
+/* ---------------- Unit 1a ---------------- */
+M({unit:"1a",id:"m1",n:1,title:"How an LLM generates text",tags:["M0","S0","G0",["memory","m"]],status:"ready",
+obj:["Trace one forward pass of a decoder-only transformer","Explain why generation is one token at a time","Predict the cost of generating without a KV cache"],
+lesson:`<p>A decoder-only model like Llama turns a sequence of token ids into a probability for the next token. Each of its layers does two things: <b>attention</b>, where every position looks back at earlier positions, and an <b>MLP</b>, which transforms each position on its own. Greedy decoding picks the most likely token, appends it, and runs the model again.</p>
+<p>Done naively, every new token re-runs the model over the <i>whole</i> sequence. Step <i>t</i> processes <i>t</i> tokens, so the work per token grows with length and the total work for <i>n</i> tokens grows with <i>n</i>². Almost all of that is repeated: the keys and values for earlier positions never change.</p>
+<p>Two costs set the time of a step. The model reads all its weights from GPU memory once per step, and it does about 2 FLOPs per weight per token processed. Short sequences are limited by the weight read; long ones by the arithmetic.</p>`,
+formula:`FLOPs per token          ≈ 2 × params
+step t without a cache   ≈ 2 × params × t  (+ attention 2·t²·d·L)
+total for n tokens       ≈ params × n²        → quadratic`,
+example:`<b>Worked example</b>Llama-3.2-1B (1.24B params, 2.5 GB in bf16) on an L4 (121 TFLOPS, 300 GB/s). At t = 128 a step needs 3.2×10¹¹ FLOPs (~5 ms at 50% MFU) but must read 2.5 GB of weights (~8 ms), so it is memory-bound. At t = 4,096 it needs 1×10¹³ FLOPs (~170 ms): now compute-bound, ~20× slower than at 128.`,
+diag:"prefilldecode",
+predict:["Step time at L = 128 on the L4: compute-bound or bandwidth-bound? Give a number in ms.","Step time at L = 4,096: how many times the L = 128 time, and why?","At what L does the n² attention term become a noticeable share of the step's FLOPs?","Shape of cumulative time for 256 generated tokens: linear, quadratic, or in between?"],
+lab:{name:"S0 · Cost of no cache",why:"Measure the waste the KV cache removes, so M1's gain has a baseline you produced yourself.",
+spec:[["Instance","g6.xlarge (1× L4)"],["Model","Llama-3.2-1B, bf16 (8B if time allows)"],["Workload","Batch 1, random token ids; step time at L = 128 … 4,096; 256 tokens from a 16-token prompt"],["Command","<code>python benchmarks/s0_no_cache.py --model-dir models/Llama-3.2-1B</code>"],["Gates","G0: greedy tokens identical to Hugging Face"]],
+metrics:[["Step time vs L","Where the line bends from flat (memory) to rising (compute)"],["Cumulative time","Linear at first, then quadratic"],["MFU / MBU per L","Which resource limits each length"]],
+expected:"Per-token time roughly flat while weight reads dominate, then rising linearly with length; total time for n tokens bends quadratic."},
+learn:"The KV cache exists because recomputing the past is quadratic and almost entirely repeated work.",
+next:"Store each position's keys and values once and reuse them (M1).",
+check:["Why does a short no-cache step cost about the same as a short cached one?","Which term makes total cost quadratic?"]});
+
+M({unit:"1a",id:"m2",n:2,title:"KV cache, prefill vs decode",tags:["M1","S1","G2",["compute","c"],["memory","m"]],status:"ready",
+obj:["Size the KV cache per token","Separate a request into prefill and decode","Place each on the roofline and predict MFU and MBU"],
+lesson:`<p>The <b>KV cache</b> keeps each layer's key and value vectors for every position, so a new token only computes its own and attends to the stored ones. That splits a request into two phases with opposite characters.</p>
+<p><b>Prefill</b> processes the whole prompt in one pass. Thousands of tokens share one read of the weights, so it does many FLOPs per byte: compute-bound. It sets <b>TTFT</b>. <b>Decode</b> produces one token per step and re-reads every weight to do it: about 1 FLOP per byte at batch 1, deeply memory-bound. It sets <b>ITL</b>.</p>
+<p>The <b>roofline</b> makes this exact. A GPU's balance point is peak FLOP/s divided by memory bandwidth. Work with lower arithmetic intensity is limited by bandwidth; higher, by compute. <b>MFU</b> (model FLOPs utilisation) measures prefill; <b>MBU</b> (memory bandwidth utilisation) measures decode. Every later optimization targets one side of this line.</p>`,
+formula:`KV bytes/token = 2 × layers × kv_heads × head_dim × bytes
+  8B: 2 × 32 × 8 × 128 × 2 = 128 KB
+decode floor (batch 1) = weight bytes ÷ bandwidth
+MFU = achieved FLOP/s ÷ peak     MBU = (weights + KV read) / step ÷ peak BW`,
+example:`<b>Worked example</b>8B on an A100 80 GB: 16 GB of weights ÷ 2.04 TB/s = <b>7.9 ms</b> per decode token at best. That step does 16 GFLOPs, i.e. 2 TFLOP/s, so decode MFU ≈ 0.7%. An 8K prefill needs 2 × 8×10⁹ × 8,192 ≈ 1.3×10¹⁴ FLOPs: ~0.85 s at 50% MFU. At context 2,000 the KV read adds 256 MB to the 16 GB of weights: about +1.6% on ITL.`,
+diag:"roofline",
+predict:["Decode floor for the 8B on your GPU. Will measured ITL land near it? What MBU do you expect, and why not 100%?","TTFT at 128 vs 4,096 tokens: linear in prompt length? Past roughly what length does the n² attention term make it grow faster?","Prefill MFU at 4K tokens vs decode MFU. Why are they orders of magnitude apart?","Does ITL rise as context grows from 128 to 2,000 tokens? By how much?","Versus S0 (tag m0): per-token time at context 2,048 without and with the cache."],
+lab:{name:"S1 · Prefill vs decode",why:"Show that the two phases are different problems, with numbers you will reuse in every later prediction.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Batch 1, random ids. Sweep A: prompt 128 → 16,384, 16 out. Sweep B: 128 in, 2,000 out. Then workloads A and B."],["Command","<code>python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","G0; G2 baseline recorded with <code>benchmarks/g2_quality.py --engine hf --save-baseline</code>"]],
+metrics:[["TTFT vs prompt length","Linear, then superlinear where attention n² grows"],["ITL vs context","Flat near the decode floor, slow rise from KV reads"],["Prefill MFU","Expected 40–60%"],["Decode MBU / MFU","Expected MBU 70–85%, MFU under 1%"],["Phase share of A and B","A ≈ 30–40% prefill; B ≈ 99% decode"]],
+expected:"TTFT linear in prompt length, superlinear past ~8K. ITL flat near the decode floor. Prefill MFU 40–60%; decode MBU 70–85% with MFU below 1%."},
+learn:"Prefill is compute-bound and decode is memory-bound. A single request leaves most of the GPU's arithmetic idle during decode.",
+next:"Serve requests over HTTP and see what one-at-a-time serving costs under load (M2).",
+check:["Why does batch-1 decode use under 1% of the GPU's FLOPs?","What is the KV size of an 8K prompt on the 8B?"]});
+
+D({unit:"1a",n:"1–6",title:"Decisions before M2",status:"decided",
+choice:"(1) Frontend and engine core in separate processes over ZMQ + msgpack. (2) Workload C is a seeded synthetic generator with sweepable distributions. (3) SLOs: TTFT p99 ≤ 3 s (A) / 1 s (B, C), TPOT p99 ≤ 50 ms. (4) Layered correctness: G0, G1a, G1b, G2. (5) Own asyncio benchmark client, cross-checked with vllm bench serve. (6) Per-request timeline, engine step log, Prometheus /metrics.",
+why:"They shape the whole codebase. TP, replicas and P/D all assume a split process design; deciding later means a rewrite at Phase 2."});
+
+M({unit:"1a",id:"m3",n:3,title:"Serving and queueing",tags:["M2","S2","R1"],status:"ready",
+obj:["Break a request's TTFT into its stages","Use utilisation to predict queue wait","Explain why serving one request at a time wastes the GPU"],
+lesson:`<p>A server adds stages around the model: HTTP and JSON parsing, tokenization, a hop from the frontend to the engine process, time in the queue, prefill, and streaming the first token back. The <b>per-request timeline</b> records each, so fixed overhead is never mistaken for GPU time.</p>
+<p>Once requests arrive at random, queueing theory takes over. With service time <i>S</i> and arrival rate λ, <b>utilisation</b> ρ = λ·S. With Poisson arrivals and fixed service time (an M/D/1 queue), mean wait grows as ρ/(1−ρ): modest at ρ = 0.5, four and a half service times at 0.9, unbounded past 1. Throughput caps at 1/S however much load you offer.</p>
+<p>That cap is the problem. While one request decodes, the GPU's compute sits almost idle (S1). Serving one at a time throws that capacity away, and the queue grows to show it.</p>`,
+formula:`ρ = λ × S
+M/D/1 mean wait  W_q = ρ·S / (2(1 − ρ))
+  ρ = 0.5 → 0.5 S    ρ = 0.8 → 2 S    ρ = 0.9 → 4.5 S
+throughput ≤ 1 / S`,
+example:`<b>Worked example</b>8B on an A100, 128 in / 32 out: prefill ≈ 13 ms plus 31 decode steps near 8 ms ≈ 0.26 s, so capacity is about 3.8 req/s. At ρ = 0.9 the mean wait is ~1.2 s, already past the 1 s TTFT SLO before any tail.`,
+diag:"queue",
+predict:["Non-GPU overhead per request (HTTP, tokenize, ZMQ both ways, SSE): how many ms, and what share of TTFT for a 32-token prompt? Which stage is largest?","Service time S for 128 in / 32 out on the 8B.","M/D/1 mean wait at ρ = 0.5, 0.8, 0.9 in units of S. At what ρ does p99 TTFT cross 1 s?","Above ρ = 1, how does wait grow with requests sent, and why does throughput cap at 1/S?","What fraction of the GPU sits idle at the capacity limit?"],
+lab:{name:"S2 · Overhead and queueing",why:"Separate fixed serving overhead from GPU time, and find the load where one-at-a-time serving breaks the SLO.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Part 1","100 sequential requests, 32-token prompt, 1 output token, idle server"],["Part 2","128 in / 32 out; measure S; Poisson arrivals at ρ = 0.2 … 1.2; ≥ 1,000 requests per point after a 30 s warm-up"],["Command","<code>python -m minillm.server --model-dir models/Llama-3.1-8B --timeline-log results/s2_timeline.jsonl</code> then <code>python benchmarks/s2_overhead_queueing.py --base-url http://127.0.0.1:8000 --vocab-size 128256 --per-rate 1200</code>"],["Gates","G0 through the API; R1 cancellation"]],
+metrics:[["TTFT breakdown","HTTP, tokenize, frontend→engine, queue, prefill, emit"],["Queue wait vs ρ","Against the M/D/1 curve"],["p99 TTFT vs ρ","Where it crosses the 1 s SLO"],["Throughput","Flattens at 1/S"]],
+expected:"A few ms of fixed overhead. Latency hockey-sticks as ρ approaches 1, and throughput stops at 1/S."},
+learn:"Queueing theory predicts the knee. One-at-a-time serving hits it while the GPU is mostly idle.",
+next:"Run several requests in one step so they share the weight read (M3).",
+check:["Why does a 30 s warm-up matter for the measured wait?","What does R1 protect against?"]});
+
+M({unit:"1a",id:"m4",n:4,title:"Batching",tags:["M3","S3","G1a","G1b",["memory","m"]],status:"ready",
+obj:["Explain why batching is nearly free while decode is memory-bound","Find the batch size where the knee should be","Quantify the padding and head-of-line cost of static batching"],
+lesson:`<p>A decode step reads all the weights whether it serves 1 request or 32. Put B requests in one step and they share that read: B times the tokens for almost the same time. Arithmetic intensity rises to about B FLOPs per byte, so throughput grows nearly linearly until B reaches the balance point, where the step turns compute-bound.</p>
+<p>Where the knee lands depends on the GPU. The roofline puts it near B ≈ 153 on an A100 80 GB and B ≈ 400 on an L4, both beyond a sweep that stops at 64. So inside the sweep the flattening comes from other costs, not from compute running out.</p>
+<p>Two things erode the ideal. Each request also reads its own KV cache, which grows with B × context. And <b>static batching</b> holds the batch together until its longest member finishes: finished rows keep occupying slots, and new requests wait for the whole batch to drain. This is head-of-line blocking.</p>
+<p>Batching also changes numerics. bf16 kernels pick different reduction orders at different batch sizes, so batched logits differ slightly from batch-1 ones. That is why correctness splits into G1a (fp32, exact) and G1b (bf16, within Hugging Face's own batching noise).</p>`,
+formula:`bytes per decode step = weights + B × context × KV bytes/token
+arithmetic intensity  ≈ B FLOP/byte (bf16)
+roofline knee         ≈ B where intensity = balance point
+                        (A100-80 ≈ 153, H100 ≈ 295, L4 ≈ 400)
+static waste          = 1 − mean(len) / max(len) per batch`,
+example:`<b>Worked example</b>8B, B = 32 at context 600: KV read = 32 × 600 × 128 KB = 2.5 GB on top of 16 GB of weights, so the step is ~15% slower than at B = 1 while producing 32× the tokens. With output lengths uniform 16–512 in batches of 16, the longest member averages ~483 tokens against a mean of 264: about 45% of decode rows are wasted.`,
+diag:"batching",
+predict:["Decode step time at B = 1 and B = 32: how much slower, and why?","At what B does arithmetic intensity reach your GPU's balance point? Is that inside the 1–64 sweep?","Throughput at B = 64 vs B = 1: ideal is 64×. What do you expect, and what limits it inside the sweep (KV reads, attention, Python per-step overhead)?","Lengths uniform 16–512 in batches of 16: what fraction of decode rows is wasted? How long do queued requests wait?","Which of these costs does continuous batching remove, and which remain?"],
+lab:{name:"S3 · Batch-size sweep",why:"Measure what batching recovers from S2's idle GPU, and what static batching still wastes.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","B = 1 → 64 workload-B requests decoding together, equal lengths"],["Part B","128 requests, outputs uniform 16–512, queued at once, static batches of 16"],["Command","<code>python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","G1a fp32 exact; G1b bf16 within 2× HF batch noise"]],
+metrics:[["Step time vs B","Nearly flat while memory-bound"],["Tokens/s vs B","Near-linear, then the knee"],["Wasted rows","Share of decode rows on finished requests"],["Queue wait","How long later batches wait"]],
+expected:"Throughput near-linear in B while memory-bound, ITL nearly flat. The roofline knee lies past B = 64 on A100, H100 and L4, so any flattening inside the sweep comes from KV reads and overhead. On mixed lengths, short requests wait for the longest."},
+learn:"Batching uses the compute decode leaves idle. Static batching gives some of it back to padding and head-of-line blocking.",
+next:"Let requests join and leave the batch at every step (M4).",
+check:["Why does the knee sit at a larger B on an L4 than on an A100?","Why can't bf16 batched output be required to match batch-1 exactly?"]});
+
+D({unit:"1a",n:"9",title:"Scheduler policy",status:"decided",
+choice:"Iteration-level scheduling, FCFS admission with no skipping, slots reserving max_model_len, prefill-first with a token budget, 503 past max_waiting. From M5: preempt the newest request first, resume by recompute.",
+why:"FCFS is the fairest policy that's easy to reason about and matches vLLM's default. Reserving full slots is the honest baseline for S5. Prefill-first gives the best TTFT, and its cost (decode stalls) is what S4 and S7 expose.",
+rej:"Rejected: decode-first (static batching again), shortest-job-first (output length unknown, starves long requests), mixed steps before chunked prefill."});
+
+M({unit:"1a",id:"m5",n:5,title:"Continuous batching and scheduling",tags:["M4","S4","R2"],status:"ready",
+obj:["Describe iteration-level scheduling","Predict the goodput gain on mixed-length traffic","Identify the prefill stall it introduces"],
+lesson:`<p><b>Continuous batching</b> (Orca's idea) makes the batch decision again at every step. A finished request leaves immediately; a waiting one joins the next step. Slots are busy only for their own request's lifetime, so the wasted rows and head-of-line blocking of static batching mostly disappear.</p>
+<p>The scheduler now has policy choices. <b>Admission</b> is first-come-first-served with no skipping, so a long prompt can't be starved. A <b>token budget</b> caps how many prompt tokens one prefill step computes. <b>Backpressure</b> bounds in-flight requests and rejects the rest with 503, so overload degrades into rejections rather than out-of-memory crashes.</p>
+<p>It creates a new problem. Each prefill step pauses every running decode. When an 8K prompt arrives, all decoding users wait ~0.85 s for their next token. Two metrics see this differently. <b>ITL</b> is each gap between tokens, so the stall shows up directly in its tail. <b>TPOT</b> is a request's decode time divided by its tokens, so a few long gaps are averaged away. A request can meet the 50 ms TPOT target while its p99 ITL is many times worse. Chunked prefill (M7) is the fix.</p>`,
+formula:`M3 batch time     = time of its longest member
+M4 slot busy time = its own request only
+decode stall per A admission ≈ one 8K prefill ≈ 0.85 s (A100, 8B)
+TPOT = decode time ÷ output tokens      ITL = each gap between tokens`,
+example:`<b>Worked example</b>Mix at 0.67 req/s total, so A arrives at 0.2/s and prefill occupies the GPU ~17% of the time. A B request decodes 1,000 tokens over ~10 s and sees about 2 A prefills. Its TPOT rises by only 2 × 0.85 s ÷ 1,000 ≈ 1.7 ms, which still meets 50 ms. But 2 of its 1,000 gaps last ~850 ms, and across all B requests that tail decides p99 ITL as A's rate rises.`,
+diag:"stall",
+predict:["Service time of an A request and a B request; each engine's capacity in req/s on the 30/70 mix with batch 16.","Goodput at M3's knee vs M4's knee. Where does the factor come from?","p99 TTFT for B below the knee: M3 waits for a whole batch, M4 for one slot. Numbers for both.","How many A prefills does a B request see at A rate λ? What happens to its TPOT, and what happens to p99 ITL across all B gaps?","R2 at 2–3× the knee: is 64 waiting small enough that admitted requests still meet TTFT?"],
+lab:{name:"S4 · Mixed traffic",why:"Measure goodput from iteration-level scheduling on the traffic that hurts static batching most, and expose the prefill stall.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","Mix 30% A / 70% B, open-loop Poisson up to 2–3× M4's knee, ≥ 1,000 requests per rate, 30 s warm-up excluded"],["Servers","Both <code>--max-batch-size 16</code>; M4 also <code>--max-num-batched-tokens 8192 --max-waiting 64</code>; M3 from tag m3 on port 8001"],["Command","<code>python benchmarks/s4_mixed_traffic.py --base-url ... --tokenizer models/Llama-3.1-8B --tag m3|m4</code>, then <code>--compare m3,m4</code>"],["Gates","G1a under joins, leaves and slot reuse; G1b; R2 checked by the rates past the knee"]],
+metrics:[["Goodput","Requests/s meeting both SLOs"],["p99 TTFT per class","A and B separately"],["p99 ITL for B","Shows the prefill stall directly"],["TPOT for B","Averages the stall away; compare with ITL"],["Rejection rate","503s past the knee"]],
+expected:"Several× goodput on high length variance and much lower p99 TTFT. B's ITL spikes when a long prompt joins."},
+learn:"Scheduling at every step recovers most of static batching's waste. Prefill and decode now interfere inside one step.",
+next:"Memory, not compute, now caps how many requests run (M5).",
+check:["Why does FCFS without skipping matter for long prompts?","Why reject at the frontend rather than in the engine?"]});
+
+D({unit:"1a",n:"7",title:"Attention backend and KV layout",status:"decided",
+choice:"Three backends on one layout: M5a torch reference (oracle), M5b FlashInfer, M5c vLLM's flash-attn fork. Block size 16; per-layer K and V tensors shaped [blocks, 16, Hkv, Dh] (NHD); ragged per-step metadata.",
+why:"Both production kernels can read this layout, and whole blocks can be shipped layer by layer later (D3, N3). Choosing a layout only one kernel reads would mean reworking M5–M6."});
+
+M({unit:"1a",id:"m6",n:6,title:"Paged KV memory and attention kernels",tags:["M5a","M5b","M5c","S5","R3",["memory","m"]],status:"ready",
+obj:["Quantify the memory wasted by contiguous slots","Explain block tables and preemption by recompute","Compare a gather-based reference with paged kernels"],
+lesson:`<p>Contiguous slots reserve <code>max_model_len</code> tokens of KV for every request, because the engine can't know how long it will run. Most requests are far shorter, so most reserved memory is empty, and that caps concurrency long before compute does.</p>
+<p><b>Paged KV</b> (vLLM's idea) splits memory into fixed 16-token blocks handed out as tokens are generated. A per-request <b>block table</b> maps logical positions to physical blocks anywhere in the pool. Waste falls to the half-empty last block of each request. When the pool runs dry, the scheduler <b>preempts</b> the newest request and recomputes it later, which shows up as a sharp latency cliff.</p>
+<p>Attention must now read KV through the block table. The torch reference gathers the blocks into a contiguous copy first: correct, but it copies batch × context every step. FlashInfer and flash-attn read pages in place. The layout is the contract that makes them interchangeable.</p>`,
+formula:`contiguous slots in budget = budget ÷ (max_model_len × KV/token)
+paged blocks                = budget ÷ (16 × KV/token)
+blocks per request          = ceil(tokens / 16)
+waste per request           ≈ 7.5 tokens (half a block)`,
+example:`<b>Worked example</b>8 GiB budget, 8B (128 KB/token), max_model_len 8,192: contiguous fits <b>8</b> slots, and a 608-token request uses 7.4% of its slot. Paged: 4,096 blocks of 2 MB, 38 per request → about <b>107</b> concurrent requests, waste ~1.2%.`,
+diag:"paged",
+predict:["Part A: how many contiguous slots fit in 8 GiB at 8,192? What fraction of each holds real tokens? How many fit paged?","Block fill: what share of held block slots hold real tokens for ~600-token requests?","How much faster is decode with several× more requests running, given S3's batch curve? Where does it stop helping?","Part B: at which pool size do preemptions start? What does each cost? Why is the cliff sharp?","Part C: bytes the reference copies at 4,096 tokens × batch 32 vs the weights read. How close should FlashInfer and flash-attn get to contiguous?"],
+lab:{name:"S5 · KV pressure",why:"Show that memory caps decode throughput, and that a paged kernel removes the cost of reading through a block table.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Workload","256 workload-B requests (100 in, outputs 16–1,000), in-process, max_model_len 8,192"],["Parts","A: 8 GiB, contiguous vs paged. B: pool at 1, ½, ¼, ⅛, 1/16. C: decode step at batch 1/8/32 × ctx 512/4,096 for slots, reference, FlashInfer, flash-attn"],["Command","<code>python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu a100-80 --backends torch_ref,flashinfer,flash_attn</code>"],["Gates","G0/G1a on paged KV incl. preempted requests; R3 after every run; each kernel vs reference within G1b"]],
+metrics:[["Concurrent requests","Average and max running"],["Block fill","Share of held slots with real tokens"],["Tokens/s","Paged vs contiguous"],["Preemptions + recomputed tokens","Where the cliff starts"],["Decode step time per backend","Reference vs FlashInfer vs flash-attn vs slots"]],
+expected:"Paged waste under ~5%, several× concurrency. Preemption shows as TTFT/ITL cliffs. The reference falls behind with context; FlashInfer within ~10% of contiguous; the two kernels within 10–20% of each other."},
+learn:"KV memory caps concurrency. Paging fixes the allocation, and a paged kernel fixes the read.",
+next:"Many requests share the same prompt start. Store it once (M6).",
+check:["Why is preemption by recompute cheaper to build than swapping?","What does R3 catch that output checks would miss?"]});
+
+D({unit:"1a",n:"8",title:"Block-hash spec",status:"decided",
+choice:"SHA-256 chain over full 16-token blocks (token ids as uint32 little-endian). The root is salted with model@revision, KV dtype, layout, block size and an optional per-request cache_salt. The last prompt token is always recomputed.",
+why:"A specified hash lets a Go or Rust router compute identical keys (D2), and salting from day one turns tenant isolation (P2) into a policy change, not a migration."});
+
+M({unit:"1a",id:"m7",n:7,title:"Prefix caching",tags:["M6","S6","R3",["compute","c"]],status:"ready",
+obj:["Explain content-addressed KV blocks","Predict TTFT as a function of the cached fraction","Estimate the hit rate of an agent workload"],
+lesson:`<p>Many requests start the same way: a system prompt, tool schemas, a document being questioned, an agent's whole conversation so far. <b>Prefix caching</b> keeps finished KV blocks after a request ends and reuses them when a new prompt begins with the same tokens.</p>
+<p>Blocks are found by <b>hash</b>. Each full block's hash covers its parent's hash and its own 16 token ids, so equal hashes mean identical prefixes. Blocks carry <b>reference counts</b>: shared blocks are never freed while in use, and unreferenced ones stay cached until an <b>LRU</b> policy evicts them for space.</p>
+<p>A hit skips prefill for the cached tokens, so TTFT should fall in proportion to the cached fraction. It can't reach zero: the new tokens still attend over the whole context, and each step has fixed overhead. Agents and RAG gain the most, which is why hit rate becomes a first-class metric.</p>`,
+formula:`h_i = SHA-256(h_(i−1) ‖ token_ids[16·i : 16·(i+1)])
+TTFT(f) ≈ (1 − f) × prefill + attention over cached context + fixed overhead
+hit rate = cached prompt tokens ÷ prompt tokens`,
+example:`<b>Worked example</b>An 8K prompt with f = 0.9 cached: the 8B prefills ~800 tokens instead of 8,192. Ideal speed-up is 10×; expect less because attention for those 800 tokens still reads 8K of context. Hashing 512 blocks costs tens of microseconds against a 0.85 s prefill.`,
+diag:"hashchain",
+predict:["Part A: with a fraction f cached, is TTFT ∝ (1 − f), or does it flatten at high f? What is the floor?","At f = 0, what does hashing cost against a 0.85 s prefill?","Part B: what share of a turn's prompt is cached on a first turn vs later turns? Predict the hit rate (prefix ~3.5K, 6 turns, ~300 new tokens per turn).","Part B TTFT with caching off vs on, against the 1 s SLO.","What breaks this: eviction from a small pool, and preemption. Which state would D4's tiering keep?"],
+lab:{name:"S6 · Shared prefixes",why:"Measure how much prefill caching removes on agent and many-questions-one-document traffic, and what it costs when nothing is shared.",
+spec:[["First pass",FIRST],["Official",OFFICIAL],["Part A","20 requests of 8,000 tokens sharing the first f × 8,000; f = 0, 0.25, 0.5, 0.75, 0.9; 8 output tokens; first request cold"],["Part B","24 workload-C sessions, ~3.5K shared prefix, growing history, turns interleaved round-robin"],["Command","<code>python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu a100-80</code>"],["Gates","fp32 tokens identical with hits, sharing, eviction and resume; hash spec byte for byte; R3 with refcounts"]],
+metrics:[["TTFT vs f","Against the ideal (1 − f) line"],["Hit rate","Cached ÷ prompt tokens"],["Prefilled tokens","Total off vs on"],["p99 TTFT per turn","Against the 1 s SLO"]],
+expected:"TTFT drops roughly in proportion to the cached fraction, flattening at high f; near-zero cost on unique prompts."},
+learn:"Agents and RAG are cache-friendly by construction; the hit rate decides their TTFT.",
+next:"Ship v1, then attack the prefill stall that S4 exposed (M7).",
+check:["Why is the last prompt token always recomputed?","Why must the hash be specified rather than Python's hash()?"]});
+
+M({unit:"1a",id:"m8",n:8,title:"Ship v1",tags:["R4","v1"],status:"planned",measured:"pending. The R4 soak script and the scripted EC2 session in scripts/aws/ still need writing.",
+obj:["List the release gate","Plan the one EC2 session that produces all v1 numbers","Know what goes in the write-up"],
+lesson:`<p>v1 is done when every gate and robustness test passes, the <b>R4 soak</b> holds steady for 1–2 hours, and S0–S6 are measured on A100/H100 in one scripted session.</p>
+<p><b>The EC2 session.</b> One g6.xlarge run (~2–3 hours) tests all CUDA-only code at once: M5b and M5c against the reference under G1b, then S5 part C. Then one A100/H100 session runs S0–S6 from their milestone tags and records the G2 baseline. Every script is ready before the instance starts.</p>
+<p><b>Deliverables.</b> Tag <code>v1</code>, a README with the S0–S6 charts, and one public write-up. Applications for inference-platform roles open here.</p>`,
+formula:`v1 gate = G0 ∧ G1a ∧ G1b ∧ G2 ∧ R1 ∧ R2 ∧ R3 ∧ R4 ∧ S0–S6 measured`,
+example:`<b>R4 pass criteria</b>Steady Mix + C load for 1–2 h: no memory growth, no block leaks, p99 TTFT and ITL drift under 10% between the first and last 10 minutes.`,
+predict:["Which study is most likely to need a rerun, and why?","What would memory growth during R4 point to?"],
+lab:{name:"R4 · Soak + v1 release",why:"Prove the engine holds up for hours, not just for a benchmark run.",
+spec:[["Kernel check","g6.xlarge: tests/test_kernels.py, M5b/M5c vs reference under G1b"],["Official runs",OFFICIAL+"; S0–S6 from tags m0–m6"],["Soak","Mix + workload C, 1–2 h. Script not written yet"],["Session script","scripts/aws/ has only a README; the end-to-end session (setup, download, runs, copy out, stop) is still to write"],["Gates","G0–G2, R1–R3 green"]],
+metrics:[["Process memory over time","Flat"],["Free + used blocks","Equals total throughout"],["p99 drift","Under 10%"]],
+expected:"All green; README charts and write-up published; tag v1."},
+learn:"A release is a set of passed gates plus measured, explained numbers.",
+next:"Unit 1b: chunked prefill, CUDA graphs, quantization, speculative decoding.",
+check:["Which tests rerun at every later milestone?"]});
+D({unit:"0",n:"20 (partial), 21",title:"Budget and AWS access before the first instance",status:"open",
+choice:"Set a dollar cap per phase with an AWS Budgets alarm for each. Check the G-instance vCPU quota (g6 is needed first) and confirm the AWS account is personal. P-instance quota, Capacity Blocks and EFA wait until Phase 3.",
+why:"Every lab runs on EC2, so an unbounded bill is the main project risk. A quota of 0 blocks the first lab."});
+
+const PLAN8 = "p4de (A100 80 GB) or p5 (H100)";
+
+/* ---------------- Unit 1b ---------------- */
+M({unit:"1b",id:"m9",n:9,title:"Chunked prefill",tags:["M7","S7",["compute","c"]],status:"planned",
+obj:["Explain how a token budget bounds step time","Predict the ITL/TTFT trade-off per chunk size","See why this is the fair baseline for P/D disaggregation"],
+lesson:`<p>S4 showed that a long prefill stalls every decoding user for the whole prefill. <b>Chunked prefill</b> (Sarathi-Serve) cuts a long prompt into chunks of at most the <b>token budget</b> and mixes each chunk into a step with the running decodes. No step is ever longer than one chunk plus a decode.</p>
+<p>The cost moves to the long prompt: it now needs several steps to finish prefill, so its TTFT rises a little, and each chunk re-reads the KV of earlier chunks. Chunk size is the dial. Smaller chunks give smoother ITL for everyone else; larger ones give faster TTFT for the long prompt.</p>
+<p>This milestone is required before D3. Comparing disaggregation against plain M4 would compare it against a strawman.</p>`,
+formula:`step time ≈ chunk_tokens × 2 × params ÷ (MFU × peak) + decode step
+p99 ITL   ≈ one chunk's step, not one whole prefill`,
+example:`<b>Worked example</b>8B on an A100 at 50% MFU: a 2,048-token chunk takes ~0.21 s, 512 tokens ~53 ms, 256 tokens ~26 ms. Only chunks of ~256–512 keep a decoding user near the 50 ms TPOT target while an 8K prompt arrives; a 2,048 chunk still breaks it, but 4× less than a whole prefill.`,
+diag:"chunked",
+predict:["p99 ITL for decode users while 8K prompts arrive, at chunk 256 / 512 / 2,048.","How much does the long prompt's TTFT rise at each chunk size?","Which chunk size maximizes goodput on the Mix workload?"],
+lab:{name:"S7 · Prefill/decode interference",why:"Measure how much of S4's ITL spike chunking removes, and what it costs in TTFT.",
+spec:[["Instance",PLAN8],["Model","Llama-3.1-8B, bf16"],["Workload","Decode users on B while 8K A prompts arrive; Mix under Poisson load; chunk 256 / 512 / 2,048"],["Baseline","Tag m6 (no chunking)"],["Gates","G0, G1a/G1b with mixed steps"]],
+metrics:[["p99 ITL of B","Should fall to about one chunk's time"],["TTFT of A","Rises slightly with smaller chunks"],["Goodput at the knee","Per chunk size"]],
+expected:"p99 ITL falls from ~whole-prefill time to ~one chunk's time; TTFT rises slightly; chunk size trades one for the other."},
+learn:"Colocated serving can bound interference but not remove it. That remaining trade-off is what disaggregation (D3) removes.",
+next:"Look at the CPU side of a decode step (M8).",
+check:["Why does a smaller chunk raise the long prompt's TTFT?","Why is M7 required before D3?"]});
+
+M({unit:"1b",id:"m10",n:10,title:"CUDA graphs and launch overhead",tags:["M8","S8"],status:"planned",
+obj:["Spot a CPU-bound decode step in a profile","Predict when CUDA graphs help","Read a Nsight Systems timeline"],
+lesson:`<p>Each decode step launches hundreds of small GPU kernels from Python. Every launch costs a few microseconds of CPU time. When the GPU work per step is short, the GPU finishes each kernel and waits for the next launch: the step is bound by the CPU, not the GPU.</p>
+<p>A <b>CUDA graph</b> records the whole sequence of kernels once and replays it with a single launch. It needs fixed shapes, so engines capture one graph per batch size and pad to the nearest.</p>
+<p>The gain depends on the ratio of launch overhead to GPU time. Small models at small batch on fast GPUs gain most; a big model at big batch barely notices.</p>`,
+formula:`step ≈ max(GPU work, kernels × launch cost) without graphs
+launch overhead ≈ layers × kernels/layer × ~5–10 µs`,
+example:`<b>Worked example</b>Llama-3.2-1B: 16 layers × ~12 kernels × ~7 µs ≈ 1.3 ms of launches, against a 1.2 ms decode floor on an A100 80 GB. Graphs could nearly halve the step. The 8B's 7.9 ms floor makes the same overhead a much smaller share.`,
+predict:["Decode step time for the 1B at batch 1 with and without graphs on A100/H100.","At what batch size does the 8B stop gaining?","What will the gaps between kernels look like in Nsight Systems before and after?"],
+lab:{name:"S8 · CPU launch overhead",why:"Learn to see when the GPU waits on Python, and how much one launch per step recovers.",
+spec:[["Instance",PLAN8],["Models","Llama-3.2-1B and Llama-3.1-8B, bf16"],["Workload","Decode step time at batch 1–32"],["Profile","PyTorch profiler and Nsight Systems"],["Gates","G0 identical with graphs on"]],
+metrics:[["Decode step time","Graphs on vs off, per batch"],["GPU idle gaps","Between kernels in the timeline"],["Speed-up by model","1B vs 8B"]],
+expected:"Large gain for the 1B at small batch; negligible for the 8B at large batch."},
+learn:"Some latency lives on the CPU. A profile shows it as gaps between kernels.",
+next:"Reduce the bytes each decode step reads (M9).",
+check:["Why do graphs need padding to fixed batch sizes?"]});
+
+M({unit:"1b",id:"m11",n:11,title:"Quantization",tags:["M9","S9a","S9b","G2",["memory","m"]],status:"planned",
+obj:["Link bytes read to decode time","Separate weight quantization from KV quantization","Use G2 as a quality gate"],
+lesson:`<p>Decode is bound by bytes read. Store weights in 8 bits instead of 16 and each step reads half as much, so ITL at small batch should improve by about the byte ratio. Prefill gains only where the GPU has FP8 tensor cores (L4, H100; not A100); otherwise the weights are expanded back to bf16 before the math.</p>
+<p>Quantizing the <b>KV cache</b> to fp8 is a separate lever: it halves the bytes per token, so twice as many tokens fit in the same memory. That raises concurrency (S5) and cuts the KV read at long context.</p>
+<p>Both lose some precision. <b>G2 is the hard gate</b>: perplexity and GSM8K must stay within noise of the bf16 baseline, or the speed-up doesn't count.</p>`,
+formula:`decode floor ∝ weight bytes:  8B bf16 16 GB → fp8 8 GB
+KV/token: 8B bf16 128 KB → fp8 64 KB  (2× tokens per GiB)`,
+example:`<b>Worked example</b>8B on an A100 80 GB: the decode floor drops from 7.9 ms to ~3.9 ms with 8-bit weights. In an 8 GiB KV budget, fp8 KV holds ~131K tokens instead of ~65K.`,
+predict:["S9a: ITL at batch 1 with 8-bit weights, and the change in G2 scores.","Will prefill get faster on A100? On H100? Why the difference?","S9b: max concurrency and long-context ITL with fp8 KV."],
+lab:{name:"S9a/S9b · Quantization",why:"Show that bytes moved are the decode cost, and that precision is a capacity lever, without losing quality.",
+spec:[["Instance",PLAN8+"; L4 for an FP8 tensor-core comparison"],["Model","Llama-3.1-8B: bf16 vs weight-only 8-bit/FP8 (borrowed kernel), bf16 KV vs fp8 KV"],["Workload","S9a: batch 1 ITL + G2. S9b: S5's sweep and long-context ITL"],["Gates","G2 within noise of the HF bf16 baseline (hard gate)"]],
+metrics:[["ITL at batch 1","Against the byte ratio"],["Perplexity, GSM8K","G2 delta"],["Max concurrency","fp8 vs bf16 KV"],["Prefill time","A100 vs H100"]],
+expected:"ITL improves by about the byte ratio at small batch with small quality loss. fp8 KV gives ~2× concurrent tokens."},
+learn:"Decode cost is bytes. Precision trades a little quality for speed and capacity, and only a quality gate keeps that honest.",
+next:"Spend idle compute guessing tokens ahead (M10).",
+check:["Why doesn't the A100 speed up prefill with FP8 weights?"]});
+
+M({unit:"1b",id:"m12",n:12,title:"Speculative decoding",tags:["M10","S10","G0",["compute","c"]],status:"planned",
+obj:["Explain draft-then-verify","Predict speed-up from acceptance rate","See why the gain shrinks with batch size"],
+lesson:`<p>Decode at low batch leaves compute idle (S1). <b>Speculative decoding</b> spends it: a cheap drafter guesses the next <i>k</i> tokens, and the target model checks all of them in one forward pass, which costs about the same as one normal decode step because it is memory-bound. It keeps the longest run of correct guesses plus one token of its own.</p>
+<p>Drafters here are <b>n-gram prompt lookup</b> (copy from the prompt; great for summarization) and <b>Llama-3.2-1B</b> drafting for the 8B. With greedy decoding the output must be <i>exactly</i> the same as without speculation: any difference under G0 is a bug.</p>
+<p>As batch size grows, the spare compute disappears, verification stops being free, and the speed-up shrinks and can turn negative.</p>`,
+formula:`expected tokens per target pass = (1 − α^(k+1)) / (1 − α)
+speed-up ≈ that ÷ (1 + k × draft cost / target cost)`,
+example:`<b>Worked example</b>Acceptance α = 0.8, k = 4: 3.36 tokens per target pass. With a 1B draft at ~15% of the 8B's step cost, speed-up ≈ 3.36 ÷ 1.6 ≈ 2.1×. On creative text α may be 0.5: 1.94 tokens per pass, ≈ 1.2×.`,
+diag:"spec",
+predict:["Acceptance rate on A (copies a lot) vs B (creative), for n-gram and 1B drafts.","Speed-up at batch 1 on A and on B.","At what batch size does speculation stop paying?"],
+lab:{name:"S10 · Acceptance vs speed-up",why:"Measure when idle compute is worth spending on guesses, and confirm it is lossless.",
+spec:[["Instance",PLAN8],["Models","Target Llama-3.1-8B; drafts n-gram and Llama-3.2-1B"],["Workload","A and B, batch 1 → 32, k swept"],["Gates","G0: output identical to non-speculative greedy"]],
+metrics:[["Acceptance rate α","By workload and drafter"],["Tokens per target pass",""],["Speed-up vs batch","Where it crosses 1"]],
+expected:"1.5–2.5× at batch 1 on A; little on B. Gain shrinks and can go negative as batch grows."},
+learn:"Speculation spends idle compute. It is a low-load optimization.",
+next:"Compare the whole engine with vLLM and ship v1.1.",
+check:["Why must speculative output match greedy output exactly?"]});
+
+M({unit:"1b",id:"m13",n:13,title:"Own engine vs vLLM, ship v1.1",tags:["S11","R4","v1.1"],status:"planned",
+obj:["Run a fair comparison","Explain a performance gap from profiles"],
+lesson:`<p>The last study puts your engine and vLLM side by side on A, B, C and Mix with the same settings and the same benchmark client, so the metric definitions can't differ.</p>
+<p>The goal is an honest <b>gap analysis</b>, not a close number. Expect gaps from kernels (fused ops, attention variants), scheduler details, and CPU overhead. Each one should be named and sized from a profile.</p>
+<p>Then the v1.1 release gate: all gates green, the R4 soak rerun, and S0–S10 rerun on A100/H100.</p>`,
+formula:`gap = vLLM goodput ÷ own goodput, per workload, explained term by term`,
+predict:["On which workload will the gap be largest, and why?","Which single cause do you expect to dominate the gap?"],
+lab:{name:"S11 · vs vLLM + v1.1",why:"Ground your engine against the production reference, then freeze v1.1.",
+spec:[["Instance",PLAN8],["Model","Llama-3.1-8B"],["Workload","A, B, C, Mix; same client against both engines (decision 5)"],["Release","R4 soak rerun; S0–S10 rerun; tag v1.1"]],
+metrics:[["Goodput per workload","Own vs vLLM"],["p99 TTFT / ITL",""],["Profile breakdown","Kernels, scheduler, CPU"]],
+expected:"vLLM ahead, with every gap attributed to a cause."},
+learn:"An explained gap is worth more than a close number.",
+next:"Unit 2: take the engine across GPUs.",
+check:["Why does using the same client for both engines matter?"]});
+
+/* ---------------- Unit 2 ---------------- */
+D({unit:"2",n:"16",title:"Multi-GPU dev hardware",status:"open",
+choice:"Options: develop on p4/p5, or on a cheap multi-GPU box. Recommendation: g6.12xlarge (4× L4, PCIe) for D1–D3 correctness; performance numbers only on p4/p5 (NVLink).",why:"Needed before D1."});
+
+M({unit:"2",id:"m14",n:14,title:"Tensor parallelism",tags:["D1","G1"],status:"planned",
+obj:["Split attention and MLP across GPUs","Count the all-reduces per layer","Explain why TP buys latency, not efficiency"],
+lesson:`<p><b>Tensor parallelism</b> (Megatron-LM) splits each layer's weight matrices across GPUs. The first matrix of a block is split by columns, so each GPU computes part of the output (half the attention heads, half the MLP width). The second is split by rows, so each GPU produces a partial sum, and an <b>all-reduce</b> adds them. That is two all-reduces per layer, on the critical path of every step.</p>
+<p>Each GPU now reads 1/TP of the weights, so the decode floor drops, but the all-reduces add fixed latency and per-GPU throughput falls. Every run must match TP=1 within tolerance (G1).</p>`,
+formula:`per-GPU weight read = weights ÷ TP
+all-reduces per step = 2 × layers
+all-reduce bytes ≈ 2 × hidden × batch × 2 bytes × (TP−1)/TP`,
+example:`<b>Worked example</b>8B at TP=4 on NVLink: each GPU reads 4 GB, so the floor falls from 7.9 to ~2 ms on A100, but 64 all-reduces per step at ~10–20 µs each add ~1 ms. On PCIe L4s the all-reduce share is far larger.`,
+diag:"tp",
+predict:["Decode latency at TP=1/2/4 on p4d.","Share of step time in all-reduce at TP=4, NVLink vs PCIe.","Per-GPU throughput at TP=4 relative to TP=1."],
+lab:{name:"D1 · TP scaling",why:"Learn what splitting a model buys and costs before using it at scale.",
+spec:[["Correctness","g6.12xlarge (4× L4), NCCL"],["Performance","p4d / p5 (NVLink)"],["Model","Llama-3.1-8B"],["Gates","G1b vs TP=1"]],
+metrics:[["Latency vs TP",""],["Per-GPU throughput vs TP",""],["All-reduce share of step","From Nsight Systems"]],
+expected:"Latency falls with TP; per-GPU efficiency falls too; all-reduce share grows with TP and is much larger without NVLink."},
+learn:"TP buys latency with interconnect bandwidth. It belongs where bandwidth is high: inside a node.",
+next:"Optionally, pipeline stages; then replicas and routing.",
+check:["Why two all-reduces per layer rather than one?"]});
+
+D({unit:"2",n:"13",title:"Pipeline-parallelism gap",status:"open",
+choice:"Options: build D1b (2-stage PP) in the mini server, or run N2's TP+PP layout on vLLM as a measurement only.",why:"N2 compares TP=16 with TP=8 + PP=2; PP must exist somewhere for that study."});
+
+M({unit:"2",id:"m15",n:15,title:"Pipeline parallelism (optional)",tags:["D1b"],status:"optional",
+obj:["Split layers into stages","Predict the bubble fraction"],
+lesson:`<p><b>Pipeline parallelism</b> gives each GPU a contiguous slice of layers. Activations pass from stage to stage, so communication is small and point-to-point, which suits slow links. The cost is the <b>bubble</b>: stages sit idle while the pipeline fills and drains. Splitting a batch into micro-batches keeps more stages busy.</p>`,
+formula:`bubble fraction ≈ (stages − 1) ÷ (micro-batches + stages − 1)`,
+example:`<b>Worked example</b>2 stages with 4 micro-batches: bubble ≈ 1/5 = 20%. With 8 micro-batches: ~11%.`,
+predict:["Bubble fraction at 2, 4 and 8 micro-batches.","When would PP beat TP across a slow link?"],
+lab:{name:"D1b · Bubble vs micro-batches",why:"Set up N2's comparison of TP vs TP+PP across nodes.",
+spec:[["Instance","g6.12xlarge, then p4d"],["Model","Llama-3.1-8B, 2 stages"],["Gates","G1b vs single GPU"]],
+metrics:[["Bubble fraction","Measured vs formula"],["Throughput vs micro-batches",""]],
+expected:"Bubble shrinks as micro-batches grow, roughly following the formula."},
+learn:"PP trades idle time for cheap communication.",next:"Replicas and a router.",check:["Why does PP suit slow links better than TP?"]});
+
+D({unit:"2",n:"10, 11",title:"Systems language and router state",status:"open",
+choice:"Language: Go (llm-d, Kubernetes) or Rust (SGLang router, Dynamo core). Router state: recommendation is replicas publish KV block events (exact, and it becomes P1's global index unchanged), and the router tokenizes so hashes match decision 8.",why:"The router is the first component outside Python."});
+
+M({unit:"2",id:"m16",n:16,title:"Replicas and cache-aware routing",tags:["D2","workload C"],status:"planned",
+obj:["Compare routing policies","Explain why cache locality and load balance conflict","Use KV events as router state"],
+lesson:`<p>With several engine replicas, a router decides where each request goes. <b>Round-robin</b> spreads load evenly but scatters a session's turns across replicas, so each turn misses the prefix cache. <b>Least-loaded</b> balances queues better. <b>Prefix- or session-aware</b> routing sends a request to the replica that already holds its prefix, which raises the hit rate but can pile load onto one replica.</p>
+<p>The router knows what each replica holds through <b>KV block events</b> (block stored, block evicted) keyed by the hashes from decision 8. The best policy scores replicas on both cached prefix length and current load.</p>`,
+formula:`score(replica) = cached_prefix_tokens − λ × queue_depth
+TTFT saved per hit ≈ cached tokens × prefill time per token`,
+example:`<b>Worked example</b>Workload C turn 4: ~4.4K tokens of history are cached on the replica that served turn 3. Routing there prefills ~300 new tokens; round-robin to another replica prefills all ~4.7K (~0.5 s on an A100).`,
+predict:["Hit rate per policy on workload C at moderate load.","p99 TTFT per policy as load rises.","At what load does pure prefix-affinity lose to least-loaded?"],
+lab:{name:"D2 · Routing policies",why:"Show cache-aware routing as the agent-serving differentiator, with numbers.",
+spec:[["Instance","g6.12xlarge (4 replicas, 1B) for logic; p4d (8B replicas) for numbers"],["Workload","Workload C at rising load"],["Policies","Round-robin, least-loaded, prefix/session-aware"],["Tracing","OpenTelemetry added here (decision 6)"]],
+metrics:[["Prefix hit rate","Per policy"],["p99 TTFT",""],["Goodput",""],["Load imbalance","Max ÷ mean queue depth"]],
+expected:"Cache-aware routing wins on hit rate and TTFT until load imbalance takes over; a combined score wins overall."},
+learn:"Routing decides the cache hit rate; the router is where agent serving is won.",
+next:"Separate prefill and decode onto different GPUs (D3).",
+check:["Why tokenize in the router?"]});
+
+D({unit:"2",n:"14",title:"KV transfer mechanism",status:"open",
+choice:"Intra-node: CUDA IPC or NCCL send/recv. Inter-node: NCCL over EFA, NIXL, UCX, or gRPC via CPU. Recommendation: NCCL send/recv for D3, then NIXL for N3 and P1 to match Dynamo and llm-d.",why:"D3 needs a way to move KV blocks between GPUs."});
+
+M({unit:"2",id:"m17",n:17,title:"Prefill/decode disaggregation",tags:["D3",["compute","c"],["memory","m"]],status:"planned",
+obj:["Explain why separating phases removes interference","Predict KV transfer cost","Know when transfer eats the gain"],
+lesson:`<p>Even with chunked prefill, prefill and decode share each step, so one always waits on the other. <b>Disaggregation</b> (DistServe, Splitwise) runs them on different GPUs: prefill workers batch prompts for compute efficiency, decode workers batch many users for bandwidth efficiency, and the KV cache moves between them.</p>
+<p>It pays when transfer time is small next to the interference it removes. Shipping whole blocks layer by layer lets transfer overlap the rest of prefill (decision 7's layout). The baseline is colocated serving <i>with</i> chunked prefill (M7).</p>`,
+formula:`transfer time = prompt tokens × KV/token ÷ link bandwidth
+8K prompt, 8B: 8,192 × 128 KB = 1 GiB`,
+example:`<b>Worked example</b>1 GiB of KV over NVLink (~300 GB/s effective) ≈ 3.5 ms; over PCIe on L4s (~25 GB/s) ≈ 43 ms. Against a 0.85 s prefill, both are small; for a 500-token prompt the fixed setup cost matters more.`,
+diag:"pd",
+predict:["SLO attainment colocated (with M7) vs disaggregated on Mix.","KV transfer time for 8K prompts on NVLink and on PCIe.","Prompt length below which disaggregation stops paying."],
+lab:{name:"D3 · P/D vs colocated",why:"Find when separating the phases beats a well-tuned colocated engine.",
+spec:[["Instance","g6.12xlarge for correctness; p4d for numbers"],["Model","Llama-3.1-8B"],["Workload","Mix and A at rising load"],["Baseline","Colocated with chunked prefill (M7)"],["Gates","G1b: disaggregated output matches colocated"]],
+metrics:[["SLO attainment / goodput",""],["KV transfer time","Per prompt length"],["Prefill:decode GPU ratio","Best split"]],
+expected:"Disaggregation wins on ITL-sensitive mixes with long prompts; for short prompts transfer overhead can flip it."},
+learn:"Separating the phases removes interference at the price of moving bytes.",
+next:"Where does idle KV go between agent turns? (D4).",
+check:["Why compare against M7 rather than M4?"]});
+
+D({unit:"2",n:"12, 19",title:"Session API and tier eviction",status:"open",
+choice:"Session API: add session_id plus tool-call pause/resume hints (and optional expected tool duration) via header or extra_body. Eviction: score = recompute cost (∝ prefix length) × reuse probability; write back to DRAM on eviction from HBM.",why:"D4 can't keep a session's KV warm without knowing the session is paused."});
+
+M({unit:"2",id:"m18",n:18,title:"KV tiering on one node",tags:["D4",["memory","m"]],status:"planned",
+obj:["Place KV across HBM, DRAM and NVMe","Find the fetch-vs-recompute crossover","Design eviction for paused agent sessions"],
+lesson:`<p>Agents pause for tool calls lasting seconds to minutes, and their KV sits idle in scarce GPU memory. <b>KV tiering</b> moves idle KV down to CPU DRAM or local NVMe and brings it back on resume. Each tier holds more and moves slower.</p>
+<p>Fetching beats recomputing when the bytes divided by the tier's bandwidth take less time than prefilling those tokens again. For long prefixes, prefill grows faster than linearly with length while bytes grow linearly, so fetching wins. For short prefixes, two fixed costs decide instead: each fetch pays a setup latency, and a prefill can never cost less than one full read of the weights (~8 ms for the 8B on an A100). Those set the crossover. This ties directly to patent US12547545B2 (HA via in-memory cache).</p>`,
+formula:`fetch time     = setup latency + tokens × KV/token ÷ tier bandwidth
+recompute time ≈ max(weights ÷ bandwidth, tokens × 2 × params ÷ (MFU × peak))
+crossover: fetch time = recompute time`,
+example:`<b>Worked example</b>4K-token agent prefix on the 8B: 512 MB of KV. From DRAM at ~25 GB/s ≈ 20 ms; from NVMe at ~3 GB/s ≈ 170 ms; recompute ≈ 0.42 s on an A100. Both tiers win at 4K; at short prefixes NVMe can lose.`,
+diag:"tiers",
+predict:["Crossover prompt length for DRAM and for NVMe.","Resume TTFT for a paused session: recompute vs DRAM vs NVMe.","How much more concurrency does offloading paused sessions free?"],
+lab:{name:"D4 · Fetch vs recompute",why:"Measure the tier economics that Phase 3 takes cluster-wide.",
+spec:[["Instance","p4d (NVMe instance storage)"],["Model","Llama-3.1-8B"],["Workload","Workload C with tool pauses; prompt length sweep"],["Gates","Restored KV gives tokens identical to never-evicted (fp32)"]],
+metrics:[["Resume TTFT per tier",""],["Crossover length",""],["Running sessions at fixed HBM",""]],
+expected:"DRAM fetch beats recompute at almost every length; NVMe wins past a crossover of a few thousand tokens."},
+learn:"Each memory tier has a length past which moving bytes beats doing math.",
+next:"What happens when a replica dies mid-stream? (D5).",
+check:["Why does the crossover move with prompt length?"]});
+
+D({unit:"2",n:"15",title:"Failure model",status:"open",
+choice:"Failures: process kill, GPU OOM, node loss. Recommendation: router replays prompt + already-emitted tokens to another replica (recompute); measure cold start by weight source (S3, local NVMe, peer GPU).",why:"D5 needs a defined set of failures and resume semantics."});
+
+M({unit:"2",id:"m19",n:19,title:"Reliability and elasticity",tags:["D5","R4"],status:"planned",
+obj:["Resume a stream after a replica fails","Measure cold-start time by weight source","Run failure injection during a soak"],
+lesson:`<p>Replicas will die mid-generation. The router can resume a stream by sending the prompt plus the tokens already emitted to another replica, which recomputes and continues; the client sees a pause, not an error. With prefix caching or tiering, that recompute can become a fetch.</p>
+<p>Scaling up needs new replicas fast. <b>Cold start</b> is dominated by loading weights: from S3, from local NVMe, or from a peer GPU over the interconnect.</p>`,
+formula:`cold start ≈ weight bytes ÷ source bandwidth + init + warm-up
+recovery TTFT ≈ detection + recompute(prompt + emitted)`,
+example:`<b>Worked example</b>8B weights, 16 GB: from S3 at ~1 GB/s ≈ 16 s; NVMe at ~5 GB/s ≈ 3 s; a peer GPU over NVLink in well under a second.`,
+predict:["Recovery time after a process kill mid-stream.","Requests lost with and without replay.","Cold start for each weight source."],
+lab:{name:"D5 · Failure injection",why:"Apply distributed-systems fundamentals to serving and measure them.",
+spec:[["Instance","p4d"],["Workload","R4 soak (Mix + C) with injected kills, OOM, node loss"],["Gates","Resumed output matches an uninterrupted run (greedy)"]],
+metrics:[["Recovery time",""],["Requests lost",""],["Cold-start time per source",""]],
+expected:"Replay loses no requests at the cost of a recompute pause; peer-GPU loading is fastest."},
+learn:"Reliability is a latency budget for failure cases.",
+next:"Unit 3: cross the node boundary.",
+check:["What does a resumed stream need from the router?"]});
+/* ---------------- Unit 3 ---------------- */
+D({unit:"3",n:"20 (full)",title:"AWS access for P-instances",status:"open",
+choice:"Before booking: P-instance vCPU quota (often 0 by default), Capacity Blocks for 2 nodes, a cluster placement group in one AZ, an EFA-enabled AMI, and a Budgets alarm.",why:"Multi-node work fails silently without the second node actually being available."});
+
+M({unit:"3",id:"m20",n:20,title:"Interconnects and multi-node mechanics",tags:["N1"],status:"planned",
+obj:["Compare NVLink, PCIe and EFA bandwidth","Launch a 2-node job","Watch cross-node TP crawl"],
+lesson:`<p>Inside a node, GPUs talk over NVLink at ~900 GB/s each. Between nodes, AWS EFA gives ~50 GB/s per node on p4d and ~400 GB/s on p5: an order of magnitude less. Design rules that hold inside a box break across boxes.</p>
+<p>N1 learns the mechanics for a few dollars: two cheap GPU instances over plain TCP, a launcher (Ray or Kubernetes), NCCL all-reduce tests, and a deliberately bad cross-node TP run to see what the bandwidth drop does.</p>`,
+formula:`all-reduce time ≈ 2 × bytes × (n−1)/n ÷ link bandwidth + latency × steps`,
+example:`<b>Rule of thumb</b>Tensor parallelism inside a node; pipeline parallelism, replicas or P/D disaggregation across nodes.`,
+predict:["NCCL all-reduce bandwidth over TCP between two cheap instances.","Slow-down of cross-node TP=2 vs single-node TP=2."],
+lab:{name:"N1 · Mechanics on cheap hardware",why:"Learn launch, NCCL tuning and failure modes before paying p5 rates.",
+spec:[["Instance","2× inexpensive GPU instances (e.g. g6), plain TCP"],["Launcher","Ray or Kubernetes"],["Tests","nccl-tests all-reduce; forced cross-node TP"]],
+metrics:[["All-reduce bus bandwidth",""],["Cross-node TP step time",""]],
+expected:"Cross-node TP is many times slower; the all-reduce dominates the step."},
+learn:"Bandwidth sets the parallelism layout.",next:"The same question on EFA with a 70B model (N2).",check:["Why does TP stop at the node boundary?"]});
+
+M({unit:"3",id:"m21",n:21,title:"Parallelism layout across nodes",tags:["N2","70B"],status:"planned",
+obj:["Compare TP=16 with TP=8 + PP=2","Trade pipeline bubbles against all-reduce cost"],
+lesson:`<p>A 70B model on two 8-GPU nodes can be split TP=16 (every layer's all-reduce crosses EFA) or TP=8 inside each node with PP=2 across them (only activations cross, once per stage). The second keeps the heavy traffic on NVLink and pays a pipeline bubble instead.</p>`,
+formula:`TP=16: 2 × layers all-reduces per step over EFA
+TP=8+PP=2: 1 activation transfer per micro-batch per step over EFA`,
+example:`<b>Worked example</b>70B has 80 layers: TP=16 puts 160 cross-node all-reduces on every decode step. TP=8 + PP=2 sends one activation tensor (8,192 × batch × 2 bytes) between nodes.`,
+predict:["Decode ITL for each layout on p4d and on p5.","Does p5's 8× more EFA bandwidth make TP=16 viable?"],
+lab:{name:"N2 · TP vs TP+PP over EFA",why:"Confirm or break the rule of thumb with a real model.",
+spec:[["Instance","2× p4d or 2× p5, EFA, placement group"],["Model","Llama-3.3-70B"],["Engine","Own engine with D1b, or vLLM as a measurement (decision 13)"]],
+metrics:[["ITL and throughput per layout",""],["Bubble fraction vs all-reduce share",""]],
+expected:"TP=8 + PP=2 wins on p4d; the gap narrows on p5."},
+learn:"Keep the chatty parallelism on the fast link.",next:"Ship KV between nodes instead (N3).",check:["What crosses the node boundary under PP?"]});
+
+M({unit:"3",id:"m22",n:22,title:"Cross-node P/D disaggregation",tags:["N3",["memory","m"]],status:"planned",
+obj:["Predict KV transfer over EFA","Find the fetch-vs-recompute crossover across nodes"],
+lesson:`<p>D3 moved KV between GPUs in one box. N3 moves it across EFA: prefill on node A, decode on node B. With fp8 KV the 70B stores 160 KB per token, so an 8K prompt is about 1.3 GB. Moving those bytes is still far cheaper than recomputing a long prompt; for short prompts, fixed transfer overhead can flip the result.</p>`,
+formula:`8K × 160 KB ≈ 1.3 GB
+p4d EFA ~50 GB/s → ~26 ms     p5 EFA ~400 GB/s → ~3 ms
+recompute 8K on 70B → hundreds of ms`,
+example:`<b>Worked example</b>bf16 KV doubles the transfer to ~2.6 GB: ~52 ms on p4d, still well under the recompute time for 8K tokens.`,
+diag:"pd",
+predict:["Transfer time for 1K, 4K, 8K, 32K prompts on p4d and p5.","Prompt length below which recompute wins."],
+lab:{name:"N3 · KV over EFA",why:"Measure the crossover that every cluster-caching decision depends on.",
+spec:[["Instance","2× p4d or 2× p5, EFA"],["Model","Llama-3.3-70B, fp8 and bf16 KV"],["Transport","NIXL (decision 14)"]],
+metrics:[["Transfer time vs length",""],["End-to-end TTFT vs colocated",""],["Crossover length",""]],
+expected:"Moving bytes beats recompute for long prompts; a crossover appears at short lengths."},
+learn:"Over a fast fabric, KV is cheaper to move than to rebuild.",next:"Route across nodes with the cache in mind (N4).",check:["Why does fp8 KV matter more across nodes?"]});
+
+M({unit:"3",id:"m23",n:23,title:"Cross-node cache-aware routing",tags:["N4"],status:"planned",
+obj:["Extend D2's router across nodes","Price a cross-node cache miss"],
+lesson:`<p>Replicas on both nodes sit behind the D2 router. Now a cache hit on the other node is reachable but costs an EFA transfer, and a miss costs a full prefill. The router's score gains a distance term.</p>`,
+formula:`cost(replica) = recompute(uncached) + transfer(remote cached) + queue wait`,
+predict:["Hit rate and p99 TTFT for local-only vs cross-node-aware routing on workload C."],
+lab:{name:"N4 · Routing across nodes",why:"Quantify routing to where the prefix lives against load balance across nodes.",
+spec:[["Instance","2× p4d or p5"],["Workload","Workload C at rising load"],["Router","D2 router with KV events from both nodes"]],
+metrics:[["Hit rate",""],["p99 TTFT",""],["Cross-node bytes moved",""]],
+expected:"Cross-node-aware routing keeps the hit rate of a single node while spreading load."},
+learn:"In a cluster, a cache hit has a location.",next:"Build the cluster-wide KV store (P1).",check:["When is a remote hit worse than a local miss?"]});
+
+D({unit:"3",n:"17, 18",title:"Cluster cache planes and KV compatibility",status:"open",
+choice:"Planes: Redis/etcd for the index, RDMA for the bytes, with Redis-over-TCP as the explicit baseline. Compatibility: put layout (TP degree, KV dtype) in the cache key, or reshard on fetch and measure that cost.",why:"Redis can't do GPU-direct RDMA, and blocks written at TP=8 are sharded by head."});
+
+M({unit:"3",id:"m24",n:24,title:"Cluster-wide KV store",tags:["P1"],status:"planned",
+obj:["Separate the cache index from the cache bytes","Compare TCP, RDMA and LMCache data planes"],
+lesson:`<p>Prompt caching at cluster scale has four layers: the engine's prefix cache (M6), node tiers (D4), a <b>cluster-wide store</b> (here), and the product layer (P2). P1 builds a global prefix index the router consults, plus a shared KV store that any replica can fetch from.</p>
+<p>The index is small and needs consistency (Redis or etcd). The bytes are large and need bandwidth (RDMA via NIXL or Mooncake Transfer Engine). Mixing them in Redis measures TCP and serialization, not EFA.</p>`,
+formula:`fetch time = bytes ÷ data-plane bandwidth + index lookup
+hit rate rises with store size, with diminishing returns`,
+predict:["Hit rate vs cache size on workload C.","Fetch time per transport (Redis/TCP, NIXL, LMCache) at 4K and 32K tokens."],
+lab:{name:"P1 · Global prefix cache",why:"Measure cross-node fetch against local recompute, by prompt length and transport.",
+spec:[["Instance","2× p4d or p5"],["Transports","Redis over TCP (baseline), NIXL or Mooncake TE, LMCache"],["Workload","Workload C; Mooncake trace replay (decision 2)"]],
+metrics:[["Hit rate vs cache size",""],["Fetch vs recompute per transport",""]],
+expected:"RDMA fetch wins well below the length where TCP does."},
+learn:"The data plane decides whether a cluster cache is worth having.",next:"Turn the cache into a product (P2).",check:["Why keep the index and the bytes in different systems?"]});
+
+M({unit:"3",id:"m25",n:25,title:"Cache as a product",tags:["P2"],status:"planned",
+obj:["Set TTL and minimum cacheable length","Build a pricing model","Close the timing side channel with salting"],
+lesson:`<p>Caching costs memory, so it has a price. Providers charge a premium to write the cache and a large discount to read it, with a short TTL. P2 sweeps TTL against memory cost, sets a minimum cacheable length, and builds a pricing model (cf. Anthropic: ~1.25× to write, ~0.1× to read, 5-minute TTL).</p>
+<p>Sharing a cache across tenants leaks information: a fast TTFT reveals that someone else sent the same prefix. Salting the cache key per tenant (built into decision 8) closes that channel.</p>`,
+formula:`break-even reads = write premium ÷ (1 − read price)
+  1.25× write, 0.1× read → 0.25 ÷ 0.9 ≈ 0.28 extra reads`,
+predict:["Memory cost per TTL setting on workload C.","Hit rate lost to per-tenant salting."],
+lab:{name:"P2 · TTL, pricing, isolation",why:"See how cache policy becomes a price, and what isolation costs.",
+spec:[["Instance","p4d or p5"],["Workload","Workload C with multiple tenants"],["Sweeps","TTL, minimum length, salt on/off"]],
+metrics:[["Hit rate vs TTL",""],["Memory cost",""],["Timing leak with and without salt",""]],
+expected:"Hit rate saturates past a few minutes of TTL; salting removes the timing signal at a small hit-rate cost."},
+learn:"Cache policy is a pricing decision and a security boundary.",next:"Prefetch an agent's KV before it needs it (P3).",check:["Why does salting cost hit rate?"]});
+
+M({unit:"3",id:"m26",n:26,title:"Agent KV prefetch",tags:["P3"],status:"planned",
+obj:["Offload during a tool call, restore on resume","Prefetch before the tool returns"],
+lesson:`<p>During a tool call the session's KV can move out of HBM; when the tool returns, it must come back. If the engine knows the expected tool duration (decision 12), it can start fetching <i>before</i> the tool returns, so resume TTFT approaches a warm hit. This is predictive pre-population from patent US12547545B2, at cluster scale.</p>`,
+formula:`resume TTFT ≈ max(0, fetch time − (tool time − prefetch lead)) + new-token prefill`,
+diag:"tiers",
+predict:["Resume TTFT with offload and no prefetch vs with prefetch.","How early must prefetch start for an NVMe-tier session of 8K tokens?"],
+lab:{name:"P3 · Resume with and without prefetch",why:"Show the agent-serving differentiator at cluster scale.",
+spec:[["Instance","2× p4d or p5"],["Workload","Workload C with tool-duration hints"],["Gates","Restored sessions produce identical tokens"]],
+metrics:[["Resume TTFT",""],["HBM freed during pauses",""],["Prefetch accuracy",""]],
+expected:"Prefetch brings resume TTFT close to a warm hit while freeing HBM during pauses."},
+learn:"Knowing the agent's schedule turns a cache miss into a hit.",next:"Probe a production system (P4).",check:["What happens if the tool returns earlier than predicted?"]});
+
+M({unit:"3",id:"m27",n:27,title:"Probing production prompt caching",tags:["P4"],status:"planned",
+obj:["Measure cached vs uncached TTFT from outside","Infer TTL from observed behaviour"],
+lesson:`<p>A black-box probe of Anthropic or Bedrock prompt caching grounds your numbers: send the same long prefix at varying intervals, record TTFT and the billed cache reads and writes, and infer the TTL and the speed-up.</p>`,
+formula:`speed-up = uncached TTFT ÷ cached TTFT
+observed TTL = longest gap that still bills a cache read`,
+predict:["Cached vs uncached TTFT for a 10K-token prefix.","Observed TTL."],
+lab:{name:"P4 · External comparison",why:"Compare home-built caching with a production system.",
+spec:[["Target","Anthropic API / Bedrock prompt caching"],["Workload","Fixed long prefix, interval sweep"],["Cost","Per-call billing recorded"]],
+metrics:[["TTFT cached vs uncached",""],["Observed TTL",""],["Cost per call",""]],
+expected:"Cached TTFT several times lower; TTL near the documented value."},
+learn:"Production numbers calibrate your own.",next:"Unit 4: production stacks.",check:["Why measure cost per call alongside TTFT?"]});
+
+/* ---------------- Unit 4 ---------------- */
+M({unit:"4",id:"m28",n:28,title:"vLLM + llm-d / Dynamo on EKS",tags:["EKS"],status:"planned",
+obj:["Deploy a production serving stack","Compare it with your own system and explain the gap"],
+lesson:`<p>llm-d (Kubernetes-native, Go) and NVIDIA Dynamo (Rust core) package what Units 2–3 built: cache-aware routing, P/D disaggregation, KV transfer via NIXL, autoscaling. Deploying one on EKS and running your workloads through it shows which of your design choices match production and where they differ.</p>`,
+formula:`gap per workload = production goodput ÷ own goodput, explained by component`,
+predict:["Where will the production stack be clearly ahead: kernels, routing, or KV transfer?"],
+lab:{name:"Production stack comparison",why:"Ground the whole distributed design against what teams deploy.",
+spec:[["Platform","EKS with GPU node groups (p4d / p5)"],["Stack","vLLM + llm-d or NVIDIA Dynamo"],["Workload","A, B, C, Mix with the same client"]],
+metrics:[["Goodput, p99 TTFT / ITL",""],["Hit rate",""],["Operational effort","Deploy and scale steps"]],
+expected:"Production ahead on kernels and operations; routing and caching comparable if Units 2–3 went well."},
+learn:"Production stacks are the same ideas with more engineering hours.",next:"Put a price on it (module 29).",check:["Which of your components maps to which llm-d / Dynamo component?"]});
+
+M({unit:"4",id:"m29",n:29,title:"Self-host vs API cost",tags:["cost"],status:"planned",
+obj:["Compute cost per job three ways","Find the break-even utilisation"],
+lesson:`<p>Run the same 2,000-paper summarization job three ways: p4/p5 with vLLM, Bedrock real-time, and Bedrock batch. Self-hosting has a fixed hourly cost, so its price per paper depends on how busy you keep the GPUs. APIs charge per token. The <b>break-even utilisation</b> is where they cost the same.</p>`,
+formula:`self-host cost/paper = instance $/h ÷ (papers/h at utilisation u)
+break-even u: self-host cost/paper = API cost/paper`,
+predict:["Cost per 1,000 papers each way.","Break-even utilisation for p4d vs Bedrock batch."],
+lab:{name:"Cost study",why:"Turn throughput numbers into a business answer.",
+spec:[["Self-host","p4/p5 + vLLM"],["API","Bedrock real-time and batch"],["Job","2,000 arXiv papers (workload A)"]],
+metrics:[["Cost per 1,000 papers",""],["Wall-clock time",""],["Break-even utilisation",""]],
+expected:"Batch API cheapest at low utilisation; self-host wins only when kept busy."},
+learn:"Throughput is only useful once it has a price.",next:"Optional Neuron run and upstream work (module 30).",check:["Why does utilisation decide self-host cost?"]});
+
+M({unit:"4",id:"m30",n:30,title:"Neuron and upstream contribution",tags:["optional"],status:"optional",
+obj:["Run the same job on Trainium/Inferentia","Contribute to llm-d, SGLang or vLLM"],
+lesson:`<p>Optionally, run the cost-study job with vLLM-on-Neuron to close the Trainium/Inferentia gap. Then, with D2–D4 and Phase 3 data in hand, write substantive comments or a small PR on the open agent-aware KV-cache issues in llm-d, SGLang and vLLM.</p>`,
+formula:`same job, same metrics: cost per 1,000 papers on Neuron`,
+predict:["Cost per 1,000 papers on Inferentia vs p4d."],
+lab:{name:"Neuron run + upstream",why:"Cover non-NVIDIA hardware and turn findings into public work.",
+spec:[["Instance","inf2 / trn1"],["Stack","vLLM on Neuron"],["Upstream","Comments or PR on agent-aware KV caching"]],
+metrics:[["Cost per 1,000 papers",""],["Upstream outcome","Merged / discussed"]],
+expected:"A cost data point on Neuron and at least one substantive upstream contribution."},
+learn:"Public contributions turn private results into evidence.",next:"Unit 5: Kimi K2.",check:["What data from Units 2–3 would make an upstream comment substantive?"]});
+
+/* ---------------- Unit 5 ---------------- */
+M({unit:"5",id:"m31",n:31,title:"Multi-head Latent Attention",tags:["K1",["memory","m"]],status:"planned",
+obj:["Explain the MLA latent KV","Compute KV bytes per token for K2","See why MLA needs data-parallel attention"],
+lesson:`<p>MLA (DeepSeek-V2/V3, used by Kimi K2) stores one compressed latent per layer per token (512 dims plus 64 RoPE dims) instead of separate keys and values per head. At decode time, <b>weight absorption</b> folds the up-projection into the query and output matrices so attention runs directly on the latent.</p>
+<p>The KV cache shrinks dramatically, which shifts every transfer and caching calculation in favour of moving KV. The catch: the latent isn't split by head, so tensor parallelism would replicate it on every GPU. Hence <b>data-parallel attention</b> in K3.</p>`,
+formula:`K2 KV/token ≈ 61 layers × (512 + 64) × 2 bytes ≈ 69 KB
+70B GQA: 320 KB   →  ~4.6× smaller`,
+example:`<b>Worked example</b>An 8K prompt on K2 is ≈ 0.56 GB of KV, against ~2.6 GB for a 70B GQA model in bf16.`,
+predict:["Max concurrency for Moonlight vs the 8B GQA model at the same KV budget.","Decode step time with and without weight absorption."],
+lab:{name:"K1 · MLA on Moonlight",why:"See how MLA changes memory, caching and transfer math.",
+spec:[["Instance","g6.12xlarge (4× L4) or one p-node"],["Model","Moonlight-16B-A3B (~32 GB bf16); tiny random DeepseekV3 config for G0/G1"],["Gates","G0/G1 vs HF on the tiny config; G2 on Moonlight"]],
+metrics:[["KV bytes/token",""],["Max concurrency",""],["Decode step time",""]],
+expected:"KV per token several× smaller than GQA, with concurrency rising to match."},
+learn:"Attention design changes the whole memory budget.",next:"The MoE layer (K2).",check:["Why can't TP shard the MLA latent?"]});
+
+M({unit:"5",id:"m32",n:32,title:"The MoE layer",tags:["K2",["compute","c"]],status:"planned",
+obj:["Route tokens to experts","Use grouped GEMM","Find the batch where nearly all experts are hot"],
+lesson:`<p>Kimi K2 has 384 experts per MoE layer; each token's router picks 8, plus 1 shared expert. At batch 1 a decode step reads only the ~32B active parameters. As batch grows, different tokens pick different experts, until almost every expert is touched and the step reads nearly all 1T parameters.</p>
+<p>That makes MoE serving economics depend on large decode batches: the weight read is shared once enough tokens use each expert. Experts run as a <b>grouped GEMM</b> via a borrowed fused-MoE kernel.</p>`,
+formula:`P(expert untouched at batch B) = (1 − 8/384)^B
+B = 64 → 26% untouched   B = 256 → 0.5% untouched`,
+example:`<b>Worked example</b>At batch 1, 8 of 384 experts are read. By batch ~256 nearly all are, so the bytes per step approach the full weights, but they are shared by 256 tokens.`,
+predict:["Decode step time vs batch for Moonlight.","The batch at which ~90% of experts are hot."],
+lab:{name:"K2 · MoE decode vs batch",why:"See why MoE needs big decode batches.",
+spec:[["Instance","g6.12xlarge or one p-node"],["Model","Moonlight-16B-A3B"],["Kernel","Borrowed fused-MoE grouped GEMM"]],
+metrics:[["Step time vs batch",""],["Experts touched per step",""]],
+expected:"Step time rises steeply until most experts are hot, then flattens."},
+learn:"MoE trades per-token cost for a dependence on batch size.",next:"Decide Phase 5 choices, then expert parallelism (K3).",check:["Why is MoE cheaper per token at large batch?"]});
+
+D({unit:"5",n:"24",title:"Phase 5 choices",status:"open",
+choice:"Checkpoint: newest text-only INT4 K2.x. Hardware: 1× p5en (simpler) vs 2× p5 (needed for cross-node EP). All-to-all on EFA: check DeepEP, pplx-kernels and NVSHMEM-over-libfabric; NCCL all-to-all as fallback. Weights: stage 0.6–1 TB in same-region S3, then local NVMe or FSx. Budget: K1–K5 on Moonlight, one short Capacity Block for K0 + K6.",why:"K3's process layout must support EP + DP attention."});
+
+M({unit:"5",id:"m33",n:33,title:"Expert parallelism + data-parallel attention",tags:["K3"],status:"planned",
+obj:["Place experts across GPUs","Dispatch and combine with all-to-all","Pair EP with data-parallel attention"],
+lesson:`<p><b>Expert parallelism</b> puts different experts on different GPUs. Every MoE layer, each token is sent to the GPUs holding its 8 experts (<b>dispatch</b>) and the results come back (<b>combine</b>): two all-to-alls per layer. Attention runs <b>data-parallel</b>: each GPU handles its own requests with a full copy of the attention weights and its own MLA latents.</p>
+<p>All-to-all is the hardest communication pattern in this roadmap; over EFA between nodes it is the main risk of Phase 5.</p>`,
+formula:`per MoE layer: 2 all-to-alls of tokens × hidden × 2 bytes × experts per token
+Moonlight, EP=8: 64 routed experts ÷ 8 = 8 per GPU
+Kimi K2,   EP=8: 384 ÷ 8 = 48 per GPU   (EP=16: 24)`,
+diag:"moe",
+predict:["All-to-all share of step time at EP=8 on NVLink.","Per-expert load imbalance on workload C."],
+lab:{name:"K3 · EP=8 on one node",why:"Learn the core MoE serving skill on a model that fits.",
+spec:[["Instance","One 8-GPU p-node"],["Model","Moonlight-16B-A3B, EP=8"],["Gates","G1b vs single-GPU Moonlight"]],
+metrics:[["All-to-all share of step",""],["Tokens per expert","Imbalance"],["Decode throughput",""]],
+expected:"All-to-all a large share of step time; visible imbalance across experts."},
+learn:"In EP, communication and imbalance set the step time.",next:"Balance the experts (K4).",check:["Why is attention data-parallel while experts are split?"]});
+
+M({unit:"5",id:"m34",n:34,title:"Expert load balancing",tags:["K4"],status:"planned",
+obj:["Replicate hot experts","Rebalance periodically (EPLB)"],
+lesson:`<p>In EP every GPU waits for the slowest one each layer. Popular experts make their GPUs stragglers. <b>EPLB</b> keeps redundant copies of hot experts and periodically reshuffles placement based on observed load.</p>`,
+formula:`step time ≈ max over GPUs (tokens routed to that GPU)
+imbalance = max ÷ mean tokens per GPU`,
+predict:["p99 ITL with and without balancing on skewed traffic.","How many redundant experts bring imbalance under 1.2?"],
+lab:{name:"K4 · Balancing on skewed traffic",why:"Show that stragglers set the step time in EP.",
+spec:[["Instance","One 8-GPU p-node"],["Model","Moonlight-16B-A3B, EP=8"],["Workload","Skewed traffic"]],
+metrics:[["Imbalance ratio",""],["p99 ITL",""]],
+expected:"Balancing lowers imbalance and p99 ITL noticeably."},
+learn:"The slowest GPU sets everyone's pace.",next:"Load quantized MoE weights (K5).",check:["Why replicate experts rather than split them further?"]});
+
+M({unit:"5",id:"m35",n:35,title:"Quantized MoE",tags:["K5","G2",["memory","m"]],status:"planned",
+obj:["Load INT4 or block-FP8 MoE weights","Gate on quality"],
+lesson:`<p>K2-Instruct ships block-FP8 (~1 TB); K2 Thinking and later ship native INT4 from quantization-aware training (~594 GB). bf16 would be ~2 TB. Borrowed kernels (Marlin-MoE, DeepGEMM) run these formats. As in M9, bytes per step drive decode time, and <b>G2 is the hard gate</b>.</p>`,
+formula:`K2 weights: bf16 ~2 TB · FP8 ~1 TB · INT4 ~594 GB
+8× H100 80 GB = 640 GB · 8× H200 = 1,128 GB`,
+predict:["ITL and bytes per step for INT4 vs bf16 Moonlight.","G2 delta."],
+lab:{name:"K5 · INT4 / FP8 MoE",why:"See why K2 ships INT4 natively.",
+spec:[["Instance","One p-node"],["Model","Moonlight, INT4 (compressed-tensors) or block-FP8"],["Gates","G2 within noise (hard gate)"]],
+metrics:[["Bytes per step",""],["ITL",""],["G2 scores",""]],
+expected:"ITL falls with the byte ratio; quality within noise for QAT weights."},
+learn:"For trillion-parameter models, precision decides whether it fits at all.",next:"The booked session: K0, K6, K7.",check:["Why does INT4 on 8× H100 leave almost no room for KV?"]});
+
+M({unit:"5",id:"m36",n:36,title:"Kimi K2 across two nodes",tags:["K0","K6","K7"],status:"planned",
+obj:["Run a production reference","Serve K2 on your engine across nodes","Explain the gap"],
+lesson:`<p>One booked session does three things. <b>K0</b>: serve K2.x INT4 with SGLang or vLLM on 1× p5en or 2× p5, on workload C, as the reference. <b>K6</b>: serve it on your engine, with EP inside each node and, across nodes, either EP=16 over EFA or a prefill node plus a decode node. <b>K7</b>: explain the remaining gap (kernels, comms library, scheduler), with the same honesty rule as S11.</p>
+<p>The reference design is LMSYS's K2 deployment on 128 H200s with P/D disaggregation, DeepEP and EPLB. This is a 1–2 node version of it.</p>`,
+formula:`MLA KV for P/D: 8K tokens ≈ 0.56 GB per request
+cross-node EP: 2 all-to-alls per MoE layer over EFA`,
+diag:"moe",
+predict:["Decode tok/s for K0 vs K6.","Which layout wins across nodes: EP=16 or P/D?","The largest single cause of the K7 gap."],
+lab:{name:"K0 / K6 / K7 · Capstone",why:"Frontier-model serving on your own engine, measured against production.",
+spec:[["Instance","1× p5en (8× H200) or 2× p5 over EFA, Capacity Block"],["Model","Kimi K2.x INT4 (~594 GB), staged in same-region S3 → NVMe"],["Reference","SGLang or vLLM"],["Workload","Workload C"]],
+metrics:[["Decode tok/s",""],["TTFT / ITL",""],["All-to-all over EFA vs NVLink",""],["Cold-start time","A D5 data point"]],
+expected:"Your engine runs K2 within a measured gap of SGLang, with each part of the gap explained."},
+learn:"The same ideas from M0 onward scale to a trillion parameters.",next:"Done. Update the resume bullets with real numbers.",check:["Which earlier module's lesson matters most for K6?"]});
+
+/* ---------------- Appendix ---------------- */
+const APPENDIX = `
+<div class="sec"><h2>Formula sheet</h2>
+<div class="formula">FLOPs per token          ≈ 2 × params
+prompt attention         ≈ 2 · n² · d · L
+attention per decode tok ≈ 4 · ctx · d · L
+KV bytes per token       = 2 × layers × kv_heads × head_dim × bytes
+MFU                      = achieved FLOP/s ÷ peak
+MBU                      = (weight bytes + KV bytes read) / step time ÷ peak bandwidth
+decode floor (batch 1)   = weight bytes ÷ bandwidth
+utilisation              ρ = λ × S;  M/D/1 wait = ρS / (2(1−ρ))
+spec decoding            tokens/pass = (1 − α^(k+1)) / (1 − α)
+transfer time            = bytes ÷ link bandwidth</div></div>
+<div class="sec"><h2>GPUs</h2>
+<div class="tbl"><table><thead><tr><th>GPU (instance)</th><th>bf16 dense</th><th>Bandwidth</th><th>Balance</th><th>8B floor</th><th>1B floor</th></tr></thead><tbody>
+<tr><td>L4 (g6)</td><td class="n">~121 TFLOPS</td><td class="n">~300 GB/s</td><td class="n">~400 FLOP/B</td><td class="n">~54 ms</td><td class="n">~8 ms</td></tr>
+<tr><td>A100 40 GB (p4d)</td><td class="n">312 TFLOPS</td><td class="n">1.56 TB/s</td><td class="n">~200 FLOP/B</td><td class="n">~10.3 ms</td><td class="n">~1.6 ms</td></tr>
+<tr><td>A100 80 GB (p4de)</td><td class="n">312 TFLOPS</td><td class="n">2.04 TB/s</td><td class="n">~153 FLOP/B</td><td class="n">~7.9 ms</td><td class="n">~1.2 ms</td></tr>
+<tr><td>H100 (p5)</td><td class="n">~989 TFLOPS</td><td class="n">3.35 TB/s</td><td class="n">~295 FLOP/B</td><td class="n">~4.8 ms</td><td class="n">~0.7 ms</td></tr>
+</tbody></table></div>
+<div class="tbl"><table><thead><tr><th>Link</th><th>Bandwidth</th></tr></thead><tbody>
+<tr><td>NVLink, inside a node</td><td class="n">~900 GB/s per GPU</td></tr>
+<tr><td>EFA, p4d</td><td class="n">~400 Gbps ≈ 50 GB/s per node</td></tr>
+<tr><td>EFA, p5</td><td class="n">~3,200 Gbps ≈ 400 GB/s per node</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Decision log</h2><div class="tbl"><table><thead><tr><th>#</th><th>Decision</th><th>Needed by</th><th>Status</th></tr></thead><tbody>
+<tr><td class="n">1</td><td>Engine process architecture</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">2</td><td>Workload C spec</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">3</td><td>SLOs and metrics</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">4</td><td>Correctness method</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">5</td><td>Benchmark client</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">6</td><td>Observability</td><td>M2</td><td>Decided 2026-10-11</td></tr>
+<tr><td class="n">7</td><td>Attention backend and KV layout</td><td>M5</td><td>Decided 2026-10-18</td></tr>
+<tr><td class="n">8</td><td>Block-hash spec</td><td>M6</td><td>Decided 2026-10-18</td></tr>
+<tr><td class="n">9</td><td>Scheduler policy</td><td>M4</td><td>Decided 2026-10-18</td></tr>
+<tr><td class="n">10</td><td>Systems language</td><td>D2</td><td>Open</td></tr>
+<tr><td class="n">11</td><td>Router state and tokenization</td><td>D2</td><td>Open</td></tr>
+<tr><td class="n">12</td><td>Session / agent API</td><td>D4</td><td>Open</td></tr>
+<tr><td class="n">13</td><td>Pipeline-parallelism gap</td><td>D1b / N2</td><td>Open</td></tr>
+<tr><td class="n">14</td><td>KV transfer mechanism</td><td>D3</td><td>Open</td></tr>
+<tr><td class="n">15</td><td>Failure model</td><td>D5</td><td>Open</td></tr>
+<tr><td class="n">16</td><td>Multi-GPU dev hardware</td><td>D1</td><td>Open</td></tr>
+<tr><td class="n">17</td><td>Cluster cache planes</td><td>P1</td><td>Open</td></tr>
+<tr><td class="n">18</td><td>KV compatibility across engines</td><td>P1</td><td>Open</td></tr>
+<tr><td class="n">19</td><td>Eviction and TTL across tiers</td><td>D4</td><td>Open</td></tr>
+<tr><td class="n">20</td><td>AWS access and quotas</td><td>Phase 0 / N1</td><td>Open</td></tr>
+<tr><td class="n">21</td><td>Budget per phase</td><td>Phase 0</td><td>Open</td></tr>
+<tr><td class="n">22</td><td>Exit criteria and write-ups</td><td>All</td><td>Set in the plan</td></tr>
+<tr><td class="n">23</td><td>MVP cut: Phase 1a + M7 + D2 + D3</td><td>All</td><td>Set in the plan</td></tr>
+<tr><td class="n">24</td><td>Phase 5 choices</td><td>K3</td><td>Open</td></tr>
+</tbody></table></div></div>
+<div class="sec"><h2>Glossary</h2><dl class="gloss">
+<dt>TTFT</dt><dd>Time to first token, as the client sees it: HTTP and tokenization, the hop to the engine, queue wait, prefill and first-token emission.</dd>
+<dt>ITL / TPOT</dt><dd>Inter-token latency / time per output token during decode.</dd>
+<dt>Goodput</dt><dd>Requests per second that meet both SLOs.</dd>
+<dt>Prefill</dt><dd>The pass over the whole prompt; compute-bound.</dd>
+<dt>Decode</dt><dd>One pass per output token; memory-bound.</dd>
+<dt>MFU / MBU</dt><dd>Share of peak FLOP/s / peak memory bandwidth actually used.</dd>
+<dt>Balance point</dt><dd>Peak FLOP/s ÷ bandwidth; the arithmetic intensity where a GPU switches from memory- to compute-bound.</dd>
+<dt>KV cache</dt><dd>Stored keys and values for every earlier position, per layer.</dd>
+<dt>Paged KV</dt><dd>KV in fixed-size blocks mapped through a per-request block table.</dd>
+<dt>Preemption</dt><dd>Evicting a running request's KV to make room; it resumes by recompute.</dd>
+<dt>Prefix caching</dt><dd>Reusing KV blocks of an identical prompt prefix, found by chained hash.</dd>
+<dt>Chunked prefill</dt><dd>Splitting a long prefill into token-budgeted chunks mixed with decodes.</dd>
+<dt>Speculative decoding</dt><dd>Drafting k tokens cheaply and verifying them in one target pass.</dd>
+<dt>TP / PP / EP</dt><dd>Tensor, pipeline and expert parallelism.</dd>
+<dt>All-reduce / all-to-all</dt><dd>Collective operations: sum across GPUs / every GPU sends to every other.</dd>
+<dt>P/D disaggregation</dt><dd>Prefill and decode on separate workers, with KV transfer between them.</dd>
+<dt>MLA</dt><dd>Multi-head Latent Attention: one compressed latent per token per layer.</dd>
+<dt>MoE</dt><dd>Mixture of experts: a router sends each token to a few expert MLPs.</dd>
+<dt>EPLB</dt><dd>Expert-parallel load balancing: replicate and re-place hot experts.</dd>
+<dt>EFA</dt><dd>AWS Elastic Fabric Adapter, the inter-node RDMA network.</dd>
+<dt>NIXL</dt><dd>NVIDIA's transfer library for moving KV between GPUs and nodes.</dd>
+</dl></div>
+<div class="sec"><h2>Deferred: kernel track</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>Kernel</th><th>Notes</th></tr></thead><tbody>
+<tr><td>KT1</td><td>Naive attention in PyTorch</td><td>Materializes the n×n matrix; baseline</td></tr>
+<tr><td>KT2</td><td>Fused prefill attention in Triton</td><td>FlashAttention-style tiling, online softmax; ~1–2 weekends</td></tr>
+<tr><td>KT3</td><td>Paged decode attention in Triton</td><td>Reads KV through the block table; drops into M5 in place of FlashInfer; measured by MBU</td></tr>
+</tbody></table></div>
+<p>Revisit after Phase 2, or if a target role requires it.</p></div>`;
+(function(){
+const store={get(k){try{return localStorage.getItem("iec:"+k)}catch(e){return null}},set(k,v){try{localStorage.setItem("iec:"+k,v)}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mods=ITEMS.filter(i=>i.kind==="module");
+const unitOf=k=>UNITS.find(u=>u.id===k);
+const isDone=m=>store.get(m.id+"-lesson")==="1"&&store.get(m.id+"-lab")==="1";
+const view=document.getElementById("view");
+
+function rail(active){
+  const ul=document.getElementById("unitList");
+  ul.innerHTML=UNITS.map(u=>{
+    const ms=mods.filter(m=>m.unit===u.id);
+    const cnt=ms.length?`${ms.filter(isDone).length}/${ms.length}`:"";
+    const cur=active===u.key;
+    const sub=cur&&ms.length?`<ul class="sublist">${ms.map(m=>`<li><a href="#${m.id}" class="${isDone(m)?"done":""}">${m.n}. ${esc(m.title)}</a></li>`).join("")}</ul>`:"";
+    return `<li><a href="#${u.key}" ${cur?'aria-current="page"':""}><span class="uid">${u.id==="A"?"ref":"U"+u.id}</span><span>${esc(u.title)}</span><span class="ucount">${cnt}</span></a>${sub}</li>`;
+  }).join("");
+  const d=mods.filter(isDone).length;
+  document.getElementById("progBar").style.width=(100*d/mods.length)+"%";
+  document.getElementById("progTxt").textContent=`${d} of ${mods.length} modules done`;
+}
+
+function tagHtml(t){if(Array.isArray(t))return `<span class="tag ${t[1]}">${esc(t[0])}-bound</span>`;return `<span class="tag">${esc(t)}</span>`}
+const pill={ready:'<span class="pill ready">Script ready · pending EC2 run</span>',planned:'<span class="pill planned">Planned</span>',optional:'<span class="pill optional">Optional</span>'};
+
+function moduleHtml(m){
+  const d=m.diag&&DIAG[m.diag];
+  const L=m.lab;
+  return `<article class="module" id="${m.id}">
+  <div class="mhead"><span class="mnum">Module ${m.n}</span><h2>${esc(m.title)}</h2></div>
+  <div class="tags">${m.tags.map(tagHtml).join("")}</div>
+  <div class="part">Lesson</div>
+  <div class="lesson">
+    <div class="obj"><b>You will be able to</b><ul>${m.obj.map(o=>`<li>${esc(o)}</li>`).join("")}</ul></div>
+    ${m.lesson}
+    <div class="formula">${esc(m.formula)}</div>
+    ${m.example?`<div class="example">${m.example}</div>`:""}
+  </div>
+  ${d?`<figure>${d.svg}<figcaption>${esc(d.cap)}</figcaption></figure>`:""}
+  <div class="part">Predict before you run</div>
+  <div class="predict">${m.predict.map((q,i)=>`<div class="q"><span class="qn">P${i+1}</span><p>${esc(q)}</p><textarea id="${m.id}-q${i}" aria-label="Your prediction ${i+1}" placeholder="A number and a reason">${esc(store.get(m.id+"-q"+i)||"")}</textarea></div>`).join("")}</div>
+  <div class="part">Lab on EC2</div>
+  <section class="lab" aria-label="Lab">
+    <div class="labtop"><h3>${esc(L.name)}</h3>${pill[m.status]}</div>
+    <p class="why"><b>Why we run it.</b> ${esc(L.why)}</p>
+    <div><p class="labh">Setup</p><div class="spec">${L.spec.map(([k,v])=>`<div>${esc(k)}</div><div>${v}</div>`).join("")}</div></div>
+    <div><p class="labh">Metrics to watch</p><div class="metrics">${L.metrics.map(([k,v])=>`<div class="metric"><b>${esc(k)}</b>${v?`<span>${esc(v)}</span>`:""}</div>`).join("")}</div></div>
+    <div class="expect"><b>Expected result</b>${esc(L.expected)}</div>
+    <div class="measured">Measured result: ${m.measured?esc(m.measured):m.status==="ready"?"pending EC2 run. Record it in docs/studies/ with the gap explained.":"pending. The milestone is not built yet."}</div>
+  </section>
+  <div class="part">Takeaway</div>
+  <div class="take">
+    <div><h4>What it teaches</h4><p style="margin:0">${esc(m.learn)}</p><p class="nextp" style="margin:.6em 0 0"><b>Leads to:</b> ${esc(m.next)}</p></div>
+    <div><h4>Check yourself</h4><ul>${m.check.map(c=>`<li>${esc(c)}</li>`).join("")}</ul></div>
+  </div>
+  <div class="checks">
+    <label><input type="checkbox" id="${m.id}-lesson" ${store.get(m.id+"-lesson")==="1"?"checked":""}> Lesson read</label>
+    <label><input type="checkbox" id="${m.id}-lab" ${store.get(m.id+"-lab")==="1"?"checked":""}> Lab done</label>
+  </div>
+  </article>`;
+}
+function decisionHtml(d){
+  const open=d.status==="open";
+  return `<aside class="decision ${open?"open":""}"><div class="dtop"><span class="flag">${open?"⚑ Open decision":"✓ Decided"} · ${esc(d.n)}</span><h3>${esc(d.title)}</h3></div>
+  <p>${esc(d.choice)}</p><p class="rej"><b>Reason:</b> ${esc(d.why)}</p>${d.rej?`<p class="rej">${esc(d.rej)}</p>`:""}</aside>`;
+}
+function unitHead(u){
+  return `<header class="unit-head"><span class="eyebrow">${u.id==="A"?"Reference":"Unit "+u.id}</span><h1>${esc(u.title)}</h1>
+  <p><b>Goal.</b> ${esc(u.goal)}</p>${u.outcome?`<p><b>Outcome.</b> ${esc(u.outcome)}</p>`:""}
+  ${u.facts?`<div class="facts">${u.facts.map(([k,v])=>`<div class="fact"><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join("")}</div>`:""}</header>`;
+}
+function pager(u){
+  const i=UNITS.indexOf(u),p=UNITS[i-1],n=UNITS[i+1];
+  return `<nav class="pager">${p?`<a href="#${p.key}">← ${esc(p.title)}</a>`:'<a href="#home">← Course map</a>'}${n?`<a href="#${n.key}">${esc(n.title)} →</a>`:"<span></span>"}</nav>`;
+}
+function home(){
+  const studies=mods.length;
+  return `<header class="unit-head"><span class="eyebrow">Course map</span><h1>Inference Engineering</h1>
+  <p>A course built from your own roadmap. Each module teaches a concept, asks you to predict a number from it, then runs an experiment on EC2 that tests the prediction. Units follow the build order, from a bare generation loop to Kimi K2 on two nodes.</p>
+  <div class="facts"><div class="fact"><b>Units</b><span>7 plus reference</span></div><div class="fact"><b>Modules</b><span>${studies}, each lesson → lab</span></div><div class="fact"><b>Built so far</b><span>M0–M6 (tags m0–m6)</span></div><div class="fact"><b>Measured so far</b><span>Nothing yet: all runs pending on EC2</span></div></div></header>
+  <div class="map">${UNITS.filter(u=>u.id!=="A").map(u=>{const ms=mods.filter(m=>m.unit===u.id);return `<a class="mapu" href="#${u.key}"><span class="k">${u.id}</span><div><h3>${esc(u.title)}</h3><p>${esc(u.goal)}</p><div class="chips">${ms.map(m=>`<span class="chip">${esc(m.lab.name.split(" · ")[0])}</span>`).join("")}</div></div></a>`}).join("")}
+  <a class="mapu" href="#unit-appendix"><span class="k">ref</span><div><h3>Reference</h3><p>Formula sheet, GPU and link numbers, decision log, glossary, kernel track.</p></div></a></div>
+  <div class="sec"><h2>MVP cut</h2><p>If time runs short, the core you need for interviews is Unit 1a, chunked prefill (module 9), routing (16) and P/D disaggregation (17). Reliability, multi-node N1–N4, P2 and P4 are cut first. Unit 5 is a capstone; applications never wait for it.</p></div>`;
+}
+function render(){
+  let h=(location.hash||"#home").slice(1);
+  let u=UNITS.find(x=>x.key===h), target=null;
+  const m=mods.find(x=>x.id===h); if(m){u=unitOf(m.unit);target=m.id}
+  if(!u&&h!=="home")h="home";
+  if(!u){view.innerHTML=home();rail("home");window.scrollTo(0,0);return}
+  let body=unitHead(u);
+  if(u.id==="0")body+=ORIENTATION;
+  if(u.id==="A")body+=APPENDIX;
+  body+=ITEMS.filter(i=>i.unit===u.id).map(i=>i.kind==="module"?moduleHtml(i):decisionHtml(i)).join("");
+  body+=pager(u);
+  view.innerHTML=body; rail(u.key);
+  document.getElementById("rail").classList.remove("openr");
+  document.getElementById("menuBtn").setAttribute("aria-expanded","false");
+  if(target){const el=document.getElementById(target);if(el)requestAnimationFrame(()=>el.scrollIntoView())}else window.scrollTo(0,0);
+}
+view.addEventListener("change",e=>{const t=e.target;if(t.type==="checkbox"){store.set(t.id,t.checked?"1":"0");const h=(location.hash||"").slice(1);const m=mods.find(x=>x.id===h);rail(m?unitOf(m.unit).key:h)}});
+view.addEventListener("input",e=>{const t=e.target;if(t.tagName==="TEXTAREA")store.set(t.id,t.value)});
+document.getElementById("menuBtn").addEventListener("click",()=>{const r=document.getElementById("rail");const o=r.classList.toggle("openr");document.getElementById("menuBtn").setAttribute("aria-expanded",o)});
+window.addEventListener("hashchange",render);
+render();
+})();
+</script>

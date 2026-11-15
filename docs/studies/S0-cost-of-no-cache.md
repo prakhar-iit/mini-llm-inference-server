@@ -3,7 +3,7 @@
 **Milestone:** M0 · **Compared against:** none (first milestone) · **Date:**
 
 ## Setup
-- Hardware: g6.xlarge (1× L4 24 GB) for the reported numbers; MacBook (MPS) only to check the shape
+- Hardware: g6.xlarge (1× L4 24 GB) for the reported numbers
 - Model / dtype: Llama-3.2-1B, bf16 (Llama-3.1-8B too if time allows)
 - Workload and load: batch 1, random token ids; step time at L = 128 … 4,096; 256 tokens generated from a
   16-token prompt

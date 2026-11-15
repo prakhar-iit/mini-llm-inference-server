@@ -11,7 +11,7 @@ Two sweeps, batch 1, random token ids:
   B. 128-token prompt, 2,000 output tokens: ITL and decode MBU vs context length.
 
 Writes results/s1_<tag>.csv and .png. Pass --gpu for MFU/MBU (needs the GPU's peak numbers); on the
-Mac the run only checks shapes, and its numbers never go in a write-up.
+smoke run (tiny or 1B model) the run only checks shapes, and its numbers never go in a write-up.
 
     python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.1-8B --gpu l4
     python benchmarks/s1_prefill_decode.py --model-dir models/Llama-3.2-1B --prompt-lengths 128,512,2048 --decode-tokens 300

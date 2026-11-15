@@ -4,7 +4,7 @@
 tagged) · **Date:**
 
 ## Setup
-- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass); MacBook for the shape check
+- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload, in-process (no server), one request at a time, so TTFT is queue-free prefill time:
   - Part A: 20 requests of 8,000 tokens (workload A's shape) whose first f × 8,000 tokens are shared (one paper,
@@ -28,13 +28,6 @@ tagged) · **Date:**
         it should track the new tokens only. What does that do to p99 TTFT against the 1 s SLO (decision 3)?
      5. What breaks this: a pool too small to keep every session's history (eviction), and preemption. Which
         session state would D4's KV tiering keep instead? -->
-
-Mac shape check (Llama-3.2-1B, MPS, 1,024-token prompts, 6 requests per point; 6 sessions with sizes scaled
-by 0.2; not for the write-up):
-- Part A, TTFT off → on: 1,614 → 1,632 ms at f = 0 (hashing ~1%), 1,621 → 1,484 ms at 0.25 (1.09×), 1,640 → 883 ms
-  at 0.5 (1.86×), 1,641 → 462 ms at 0.75 (3.55×), 1,627 → 316 ms at 0.9 (5.15× of an ideal 10×). The gap at high
-  f is the part of each step that doesn't shrink with fewer prefill tokens.
-- Part B (37 turns): mean TTFT 1,865 → 400 ms, p99 2,349 → 1,724 ms; prefilled tokens 42,453 → 6,053; hit rate 85.7%.
 
 ## Result
 <table and chart>

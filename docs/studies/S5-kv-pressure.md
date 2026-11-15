@@ -3,7 +3,7 @@
 **Milestone:** M5a (kernel part: M5b, M5c) · **Compared against:** git tag `m4` (contiguous slots) · **Date:**
 
 ## Setup
-- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass); MacBook for the shape check
+- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload: 256 workload-B-shaped requests (100-token prompts, outputs uniform 16–1,000), all queued at once,
   in-process (no server), `max_model_len` 8,192.
@@ -32,16 +32,6 @@
         the cliff sharp rather than gradual?
      5. Part C: the reference gathers the whole context every decode step; at 4,096 tokens × batch 32 how many bytes
         is that copy vs the weights read? How close should FlashInfer and flash-attn get to contiguous slots? -->
-
-Mac shape check (Llama-3.2-1B, MPS, 0.25 GiB of KV = 512 blocks, `max_model_len` 2,048, 32 requests with outputs
-16–256; not for the write-up):
-- Part A: contiguous fits 4 slots of 2,048 tokens, and a request averages ~236 tokens, so 11.5% of each
-  reservation holds real tokens. Paged ran 15.0 requests on average (max 32, every request at once) against 3.6,
-  for 98.2 vs 36.9 tok/s (2.66×), with 96.5% of held block slots holding a real token.
-- Part B: one preemption at ½ the pool, 17 at ¼ (2,079 tokens recomputed, 69.7 tok/s, TTFT p99 36 s), 25 at ⅛
-  (3,121 recomputed, 7.3 tok/s, TTFT p99 498 s, ITL max 44 s): the cliff sits between ¼ and ⅛.
-- Part C (torch reference vs contiguous, decode step): 48.6 vs 38.1 ms at B = 1, ctx 256; 112.6 vs 56.7 ms at
-  B = 8, ctx 1,024. The gather's cost grows with batch × context, as expected of a reference path.
 
 ## Result
 <table and chart>

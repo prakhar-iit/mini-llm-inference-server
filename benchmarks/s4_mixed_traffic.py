@@ -14,7 +14,7 @@ Run once per engine against a running server (same model, hardware and flags), t
     python benchmarks/s4_mixed_traffic.py --base-url http://127.0.0.1:8000 --tokenizer models/Llama-3.1-8B --tag m4
     python benchmarks/s4_mixed_traffic.py --compare m3,m4
 
-Mac smoke run (random token ids, shapes scaled down):
+Smoke run (random token ids, shapes scaled down):
     python benchmarks/s4_mixed_traffic.py --base-url http://127.0.0.1:8000 --vocab-size 128256 \\
         --a-shape 1024,16 --b-shape 64,128 --rates 0.25,0.5,1 --per-rate 40 --warmup 0 --tag smoke-m4
 

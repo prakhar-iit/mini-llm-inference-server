@@ -11,6 +11,9 @@ decoding, CUDA graphs) now run **on the mini inference server, one study per mil
 latency and throughput gain is measured against Prakhar's own previous version. A design review with
 the open decisions is at the end of the roadmap.*
 
+*2026-11-14 change: **the Mac tier is dropped.** The MacBook is only an editor. Nothing runs on it: tests,
+smoke runs, study dry runs and official numbers all run on EC2 (g6.xlarge first, p4/p5 for official numbers).*
+
 *Restructure: the roadmap is now **one ordered build sequence** (see "Implementation order"). Each open
 decision appears as a ⚑ checkpoint at the step that needs it. A **testing program** was added:
 correctness/quality gates (G0–G2) and robustness tests (R1–R4) alongside the performance studies, each
@@ -48,7 +51,7 @@ step that follows it. A milestone is done when its tests pass and its study note
 
 **Phase 0 — Setup**
 1. ⚑ 21 Budget per phase; ⚑ 20 (partial) AWS G-instance quota + Budgets alarm
-2. Request Llama access on Hugging Face; dev environment; `pytest` green on the Mac
+2. Request Llama access on Hugging Face; dev environment on a g6.xlarge; `pytest` green there
 
 **Phase 1a — Core engine → v1**
 3. M0 Generation loop, no KV cache — **G0** greedy match vs HF · S0
@@ -60,8 +63,8 @@ step that follows it. A milestone is done when its tests pass and its study note
 8. ⚑ 9 Scheduler policy
 9. M4 Continuous batching — **R2** overload/backpressure · S4
 10. ⚑ 7 Attention backend and KV layout
-11. M5a Paged KV + block manager on the torch reference backend (Mac) — **R3** KV block accounting · S5;
-    then M5b FlashInfer and M5c flash-attn (vLLM's fork), coded on the Mac, tests skip without CUDA
+11. M5a Paged KV + block manager on the torch reference backend — **R3** KV block accounting · S5;
+    then M5b FlashInfer and M5c flash-attn (vLLM's fork), coded before the GPU session, tests skip without CUDA
 12. ⚑ 8 Block-hash spec
 13. M6 Prefix caching · S6
 14. One GPU session for everything CUDA-only: M5b and M5c checked against the reference backend under G1b,
@@ -118,41 +121,39 @@ D5, N1–N4, P2 and P4 are the first to cut. Phase 5 is a capstone; applications
   - **Moonlight-16B-A3B**, Moonshot's own small model on the same architecture.
   - **Kimi K2.x**: 1T total parameters, 32B active.
 
-**Development environment — three tiers, same code everywhere:**
-1. **MacBook (PyTorch on MPS), tiny configs and Llama-3.2-1B — correctness only.**
-   - What runs: scheduler, block manager, prefix-cache hashing, server, chunked-prefill logic,
-     speculative-decoding loop, router and replicas as separate processes.
-   - TP sharding can be checked with 2 processes on PyTorch's CPU backend (gloo).
-   - What doesn't run: FlashInfer, FlashAttention, CUDA graphs, NCCL, Triton and FP8, all CUDA-only.
-   - Mac numbers never go in a study write-up. bf16 on MPS needs macOS 14+.
-2. **g6.xlarge (1× L4) and g6.12xlarge (4× L4) — the CUDA path.**
+**Development environment — EC2 only, same code everywhere (revised 2026-11-14):** the MacBook is
+an editor; nothing runs on it.
+1. **g6.xlarge (1× L4) and g6.12xlarge (4× L4) — development and the CUDA path.**
+   - `pytest`, smoke runs of every study script (tiny configs or Llama-3.2-1B), and first-pass numbers.
    - Fix CUDA-path bugs: FlashInfer integration, KV layout, CUDA graphs, FP8.
-   - Dry-run every study; check multi-GPU correctness for D1–D3.
+   - Dry-run every study; check multi-GPU correctness for D1–D3. TP sharding can also be checked with
+     2 processes on PyTorch's CPU backend (gloo).
    - Moonlight-16B (~32 GB in bf16) fits on the g6.12xlarge.
-3. **p4/p5 (and p5en for Kimi K2) — scripted runs only.** Official study numbers, multi-GPU and
+   - First-pass L4 numbers are labelled as such and never mixed with official ones.
+2. **p4/p5 (and p5en for Kimi K2) — scripted runs only.** Official study numbers, multi-GPU and
    multi-node performance, Phase 5.
 
 *Code rules that make this work:*
-- A `--device mps|cuda|cpu` flag.
+- A `--device cuda|cpu` flag (the code still accepts `mps`, but nothing is run there).
 - An attention-backend switch: a plain-PyTorch reference that gathers KV through the block table, and
   FlashInfer. On CUDA the reference doubles as FlashInfer's correctness oracle.
 - One test suite on every tier.
-- Compare against Hugging Face on the same device only, never Mac vs CUDA.
+- Compare against Hugging Face on the same device only, never across devices.
 - Platform-specific dependency pins, so FlashInfer installs only on Linux/CUDA.
 
-**Study hardware (decided 2026-10-11):** no GPU during development. Phase 1 studies run together in
+**Study hardware (decided 2026-10-11, revised 2026-11-14):** development and smoke runs on a g6.xlarge. Phase 1 studies run together in
 scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one A100/H100
 (L4 acceptable for a first pass). To make that work:
 - Tag every milestone (`m0`, `m1`, …) so each study can check out its milestone and the one before it.
 - Write each study's prediction when its milestone lands, while the code is fresh; the GPU session only
   measures and explains the gaps.
-- Smoke-run every study script on the Mac (tiny model or Llama-3.2-1B) to catch broken scripts and
-  check curve shapes; Mac numbers never go in a write-up.
-- G2 runs in full only on the GPU (32K-token perplexity + 200 GSM8K questions; ~30 min per engine on
-  the Mac). The first GPU session records the HF baseline (`benchmarks/g2_quality.py --engine hf
-  --save-baseline`), then checks every milestone tag against it. The Mac only smoke-runs it.
+- Smoke-run every study script on the g6.xlarge (tiny model or Llama-3.2-1B) to catch broken scripts
+  and check curve shapes before an official session.
+- G2 runs in full on the GPU (32K-token perplexity + 200 GSM8K questions). The first GPU session records
+  the HF baseline (`benchmarks/g2_quality.py --engine hf --save-baseline`), then checks every milestone
+  tag against it.
 - One g6.xlarge session (~2–3 hours) after M6 tests all CUDA-only code at once: M5b (FlashInfer) and M5c
-  (flash-attn) are written on the Mac first. A layout problem found there means reworking M5a–M6 (decision 7),
+  (flash-attn) are written before any GPU is available. A layout problem found there means reworking M5a–M6 (decision 7),
   so the layout is chosen to be what both kernels read.
 
 **Workloads (the harness is reused from M2 through Phase 4):**
@@ -243,7 +244,7 @@ overhead is never mistaken for GPU time.
 - ⚑ **Decision 20, partial:** check the G-instance vCPU quota (g6 is needed from M1's CUDA dry runs);
   confirm the AWS account is personal. P-instance quota, Capacity Blocks and EFA wait until Phase 3.
 - Request access to the gated Llama models on Hugging Face.
-- Dev environment on the MacBook (`uv pip install -e ".[dev]"`, `pytest -q` green).
+- Dev environment on a g6.xlarge (`uv pip install -e ".[dev,cuda]"`, `pytest -q` green).
 
 ### Phase 1 — Mini inference server, single GPU, a study at every step · ~10 weekends
 Python + PyTorch, borrowed attention kernels. Correctness gates G0–G2 at every milestone.
@@ -274,8 +275,8 @@ benchmark client, observability). They shape the whole codebase.
 | # | Build | Tests added | Study on own engine | Prediction to check | What it teaches |
 |---|---|---|---|---|---|
 | M5a | Paged KV cache + block manager + eviction by recompute, on the torch reference backend (gathers through the block table); ragged per-step batches | **R3** | **S5 KV pressure:** max concurrency at fixed memory, contiguous (reserve max_len) vs paged; shrink memory until preemptions start | Contiguous wastes most reserved KV memory; paged waste under ~5%, so concurrency rises several×. Preemption shows up as TTFT/ITL cliffs | Memory, not compute, caps decode throughput |
-| M5b | FlashInfer backend on the same pages (coded on the Mac; tested in the GPU session after M6) | G1b vs the reference backend, same GPU | **S5, kernel part:** decode step time at batch 1–32 and long context, reference vs FlashInfer vs M4's contiguous slots | The gather-based reference loses badly as context grows; FlashInfer's paged decode runs within ~10% of contiguous | What a paged kernel buys over gather-then-attend |
-| M5c | flash-attn backend (vLLM's fork, block size 16) on the same pages (coded on the Mac; same GPU session) | G1b vs the reference backend, same GPU | **S5, kernel part:** the same sweep, now three-way | FlashInfer and flash-attn within ~10–20% of each other; differences show at small batch and long context | Kernels are interchangeable behind one interface; the layout is the contract |
+| M5b | FlashInfer backend on the same pages (coded before the GPU session; tested in it after M6) | G1b vs the reference backend, same GPU | **S5, kernel part:** decode step time at batch 1–32 and long context, reference vs FlashInfer vs M4's contiguous slots | The gather-based reference loses badly as context grows; FlashInfer's paged decode runs within ~10% of contiguous | What a paged kernel buys over gather-then-attend |
+| M5c | flash-attn backend (vLLM's fork, block size 16) on the same pages (coded before the GPU session; tested in the same session) | G1b vs the reference backend, same GPU | **S5, kernel part:** the same sweep, now three-way | FlashInfer and flash-attn within ~10–20% of each other; differences show at small batch and long context | Kernels are interchangeable behind one interface; the layout is the contract |
 
 ⚑ **Decision 8 before M6** (block-hash spec).
 
@@ -427,8 +428,8 @@ random config vs HF for G0/G1, Moonlight for G2.
   NVMe (or FSx for Lustre) before the clock-critical session. Load time is a D5 cold-start data point.
 - **Budget:** each p5-class node costs tens of dollars an hour on demand. Do K1–K5 on Moonlight (cheap),
   then book a short Capacity Block for K0 + K6 with every script ready.
-- **The Mac can't run any of this beyond tiny random configs.** Moonlight in bf16 (~32 GB) needs a
-  48 GB+ Mac even for slow correctness runs.
+- **Development hardware:** tiny random configs run on any CUDA instance; Moonlight in bf16 (~32 GB)
+  needs at least a g6.12xlarge.
 
 ---
 
@@ -446,7 +447,7 @@ decided late, so settle it before writing M2.
 | 2 | **Workload C (agent) spec** | Purely synthetic vs replaying public traces (Mooncake/Kimi, Azure LLM inference traces, BurstGPT) | Synthetic generator with explicit distributions: turns per session, shared-prefix size, tool-pause duration, Poisson arrivals. Validate arrival shape against a public trace. Abstract patterns only, no Oracle data |
 | 3 | **SLO and metric definitions** | Fixed numbers per workload | E.g. TTFT p99 ≤ 1 s (B, C), ≤ 3 s (A); TPOT p99 ≤ 50 ms. Goodput = requests/s meeting both. Fix them now so S4–S10 and D3 are comparable |
 | 4 | **Correctness method** | Greedy token match vs logit tolerance | Greedy match vs Hugging Face holds only at batch 1. bf16 kernels aren't batch-invariant, so batched runs diverge legitimately. Add teacher-forced logit comparison with a tolerance, plus an fp32 test mode. Implemented as gates G0–G2 |
-| 5 | **Benchmark client** | Write one vs reuse `vllm bench serve` against own OpenAI-compatible server | **Decided 2026-10-11:** own client for A, B and C (runs on the Mac, one set of metric definitions, agent sessions), cross-checked against `vllm bench serve` in the GPU session. Same client against both engines keeps S11 fair |
+| 5 | **Benchmark client** | Write one vs reuse `vllm bench serve` against own OpenAI-compatible server | **Decided 2026-10-11:** own client for A, B and C (one set of metric definitions, agent sessions), cross-checked against `vllm bench serve` in the GPU session. Same client against both engines keeps S11 fair |
 | 6 | **Observability** | Logs only vs metrics + per-request timeline | **Decided 2026-10-11:** per-request timeline (returned to the client + JSONL), an engine step log behind a flag, and Prometheus `/metrics` from M2; OpenTelemetry tracing added at D2. Every study reads from them |
 
 **B. Decide by M4–M6**
@@ -454,7 +455,7 @@ decided late, so settle it before writing M2.
 | # | Open decision | Options | Recommendation |
 |---|---|---|---|
 | 9 | **Scheduler policy** (before M4) | FCFS vs priority; preemption victim choice | Token budget per step, FCFS admission, preempt newest first. Leave a priority hook so resumed agent sessions can jump the queue later (D4/P3) |
-| 7 | **Attention backend and KV layout** (before M5) | FlashInfer paged API vs flash-attn `flash_attn_with_kvcache` with block table; block size; NHD vs HND; layer-major vs block-major | Three stages on one layout: M5a torch reference (Mac), M5b FlashInfer, M5c flash-attn (vLLM's fork; upstream needs 256-token blocks). Block size 16, per-layer separate K/V tensors `[blocks, 16, Hkv, Dh]` (NHD). Check the layout lets D3/N3 ship whole blocks layer by layer (overlaps transfer with prefill) |
+| 7 | **Attention backend and KV layout** (before M5) | FlashInfer paged API vs flash-attn `flash_attn_with_kvcache` with block table; block size; NHD vs HND; layer-major vs block-major | Three stages on one layout: M5a torch reference (oracle), M5b FlashInfer, M5c flash-attn (vLLM's fork; upstream needs 256-token blocks). Block size 16, per-layer separate K/V tensors `[blocks, 16, Hkv, Dh]` (NHD). Check the layout lets D3/N3 ship whole blocks layer by layer (overlaps transfer with prefill) |
 | 8 | **Block-hash spec** (before M6) | Python `hash()` vs a specified hash | A specified hash: sha256 (or xxh3-128) over parent hash + token-id bytes + extra keys (model + revision, KV dtype, tenant salt, LoRA id). The Go/Rust router must compute identical hashes; salting from day one makes P2 a policy change, not a migration |
 
 **C. Decide during Phase 2 (each before the step shown)**
@@ -491,8 +492,8 @@ decided late, so settle it before writing M2.
 
 ## Practicalities
 
-- **Cost hygiene:** logic on the MacBook; CUDA path on a single-L4 g6.xlarge and a g6.12xlarge for
-  multi-GPU correctness. Use the p4/p5 (bills for all 8 GPUs) only for:
+- **Cost hygiene:** development, tests and smoke runs on a single-L4 g6.xlarge, and a g6.12xlarge for
+  multi-GPU correctness. Stop instances when not in use. Use the p4/p5 (bills for all 8 GPUs) only for:
   - the two Phase 1 study reruns
   - Phase 2 multi-GPU performance runs
   - the planned Phase 3 multi-node sessions

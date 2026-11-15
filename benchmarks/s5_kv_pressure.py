@@ -15,7 +15,7 @@ flash-attn on the same pages, and M4's contiguous slots. Backends that aren't bu
 
     python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.1-8B --kv-gb 8 --gpu a100-80
     python benchmarks/s5_kv_pressure.py --model-dir models/Llama-3.2-1B --kv-gb 0.25 --max-model-len 2048 \\
-        --requests 32 --out-max 256 --fractions 1,0.5,0.25,0.125 --batches 1,8 --contexts 256,1024  # Mac smoke run
+        --requests 32 --out-max 256 --fractions 1,0.5,0.25,0.125 --batches 1,8 --contexts 256,1024  # smoke run
 """
 
 from __future__ import annotations

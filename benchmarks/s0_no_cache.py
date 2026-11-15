@@ -6,7 +6,7 @@ This script measures:
 1. step time vs sequence length: one forward over L tokens, for L in --lengths;
 2. cumulative time to generate N tokens from a short prompt, to show the total is quadratic.
 
-Writes results/s0_<tag>.csv and results/s0_<tag>.png. Numbers from the Mac are for checking the shape
+Writes results/s0_<tag>.csv and results/s0_<tag>.png. Smoke-run numbers (tiny model) are for checking the shape
 only; the study's numbers come from the L4 (see the plan's dev tiers).
 
     python benchmarks/s0_no_cache.py --model-dir models/Llama-3.2-1B

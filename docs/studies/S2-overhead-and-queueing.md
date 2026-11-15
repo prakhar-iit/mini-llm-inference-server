@@ -3,7 +3,7 @@
 **Milestone:** M2 · **Compared against:** git tag `m1` (S1, in-process engine) · **Date:**
 
 ## Setup
-- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass); MacBook for the shape check
+- Hardware: one A100/H100 in the v1 GPU session (L4 + Llama-3.2-1B for a first pass)
 - Model / dtype: Llama-3.1-8B, bf16
 - Workload and load:
   - Part 1 (overhead): 100 sequential requests, 32-token prompt, 1 output token, idle server.
@@ -22,12 +22,6 @@
      4. Above rho = 1, how does wait grow with the number of requests sent, and why does throughput cap at 1/S?
      5. What fraction of the GPU sits idle at the capacity limit, given decode is bandwidth-bound (S1)?
         That idle fraction is what M3/M4 batching recovers. -->
-
-Mac shape check (Llama-3.2-1B, MPS, 25 requests per point, no warm-up; not for the write-up):
-- Overhead: TTFT 76 ms, of which prefill 74 ms; client→server 1.1 ms, HTTP+tokenize 0.01 ms,
-  frontend→engine 0.25 ms, queue 0.05 ms, engine→client 0.64 ms (non-GPU ≈ 3%).
-- Queueing: S = 438 ms (128 in, 8 out). Mean wait 7 / 94 / 422 ms at rho 0.3 / 0.6 / 0.9 vs M/D/1
-  94 / 329 / 1,971 ms. Short runs that start from an empty queue sit below the steady-state formula.
 
 ## Result
 <table and chart>

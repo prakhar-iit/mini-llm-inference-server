@@ -12,7 +12,7 @@ wait for long ones.
 
     python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.1-8B --gpu a100-80
     python benchmarks/s3_batch_sweep.py --model-dir models/Llama-3.2-1B --batches 1,2,4,8,16 --decode-steps 32 \\
-        --mixed-requests 32  # Mac smoke run
+        --mixed-requests 32  # smoke run
 """
 
 from __future__ import annotations

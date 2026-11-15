@@ -15,7 +15,7 @@ leak, off-by-one positions, one request reading another's KV) cause large errors
 | Gate | From | Method | Catches |
 |---|---|---|---|
 | G0 | M0 | Batch 1, greedy tokens identical to HF (bf16, same device) | Model math |
-| G1a | M3 | Batched engine in **fp32**: tokens identical to batch-1 runs; logits within 1e-4 | Logic bugs: masks, positions, cache mix-ups. Deterministic; tiny configs run on the Mac |
+| G1a | M3 | Batched engine in **fp32**: tokens identical to batch-1 runs; logits within 1e-4 | Logic bugs: masks, positions, cache mix-ups. Deterministic; tiny configs run anywhere |
 | G1b | M3, M5, D1 | **bf16 teacher-forced**: every request is fed a fixed reference continuation; per-position logits compared with a batch-1 reference | Kernel numerics: FlashInfer layout (M5), TP reductions (D1) |
 | G2 | M1 (gate from M9) | WikiText-2 perplexity within 1%, GSM8K within 2 standard errors of the HF baseline | Quality loss: quantization, fp8 KV |
 
@@ -30,7 +30,7 @@ Speculative decoding (M10) must reproduce non-speculative greedy output exactly 
 
 ## Rejected
 - Exact greedy match only: blind to batching bugs.
-- One bf16 tolerance only: small logic bugs can hide inside it, and nothing runs exactly on the Mac.
+- One bf16 tolerance only: small logic bugs can hide inside it, and bf16 results differ across devices.
 - Batch-invariant kernels (exact results across batch sizes): a kernel project; deferred kernel track.
 
 ## At M2

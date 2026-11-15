@@ -14,7 +14,7 @@ against any OpenAI-compatible server: ours and vLLM's.
   replay (decision 2).
 - Excludes the 30 s warm-up, requires ≥ 1,000 requests per point, computes goodput against the SLOs.
 - Sends a request id and joins the server's per-request timeline (queue, prefill, decode; decision 6).
-- Runs on the Mac for smoke tests.
+- Smoke-tested on the g6.xlarge before each official session.
 
 ## Credibility check
 In the first GPU session, run one workload-A and one workload-B configuration with both this client and
@@ -23,7 +23,7 @@ find out why before any study number is used.
 
 ## Why it changes the plan
 The plan recommended `vllm bench serve` for A/B before two later decisions: no GPU during development
-(vLLM can't be installed on the Mac, so A/B couldn't be smoke-tested) and workload C's token-id sessions
+(vLLM couldn't be installed on the Mac, so A/B couldn't be smoke-tested; the Mac tier was dropped on 2026-11-14) and workload C's token-id sessions
 with exact timer definitions (a second tool would measure A/B differently from C).
 
 ## Rejected

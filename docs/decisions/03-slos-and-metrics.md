@@ -37,7 +37,7 @@ Engine-side timings (queue, prefill, decode, cache-hit tokens) come from the per
 - **Official:** Llama-3.1-8B on one A100-80GB or H100. Decode floor ≈ 8–10 ms (A100), ≈ 5 ms (H100).
 - **L4 first pass:** Llama-3.2-1B (decode floor ≈ 8 ms). Llama-3.1-8B on the L4 has a ≈ 54 ms decode
   floor, above the TPOT SLO, so it can never pass; don't use it for goodput.
-- **Mac:** shape checks only; never compared against SLOs.
+- **No Mac tier** (dropped 2026-11-14): every run is on EC2.
 
 ## Sanity checks behind the numbers
 - A: an 8K-token 8B prefill ≈ 1.3×10¹⁴ FLOPs ≈ 0.85 s on an A100 at 50% MFU, leaving ~2 s for queueing.

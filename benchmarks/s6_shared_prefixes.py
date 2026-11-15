@@ -10,7 +10,7 @@ previous context, and turns of a new session hit its agent type's prefix.
 
     python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.1-8B --gpu a100-80
     python benchmarks/s6_shared_prefixes.py --model-dir models/Llama-3.2-1B --prompt-len 1024 --requests 8 \\
-        --sessions 6 --agent-scale 0.2 --kv-gb 0.5  # Mac smoke run
+        --sessions 6 --agent-scale 0.2 --kv-gb 0.5  # smoke run
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def main() -> None:
     ap.add_argument("--requests", type=int, default=20, help="part A: requests per fraction (the first is cold)")
     ap.add_argument("--output-len", type=int, default=8)
     ap.add_argument("--sessions", type=int, default=24, help="part B: workload C sessions")
-    ap.add_argument("--agent-scale", type=float, default=1.0, help="part B: scale prefix and turn sizes (Mac smoke)")
+    ap.add_argument("--agent-scale", type=float, default=1.0, help="part B: scale prefix and turn sizes (smoke run)")
     ap.add_argument("--skip", default="", help="comma-separated parts to skip: a,b")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--tag", default=None)
