@@ -251,7 +251,7 @@ learn:"Agents and RAG are cache-friendly by construction; the hit rate decides t
 next:"Ship v1, then attack the prefill stall that S4 exposed (M7).",
 check:["Why is the last prompt token always recomputed?","Why must the hash be specified rather than Python's hash()?"]});
 
-M({unit:"1a",id:"m8",n:8,title:"Ship v1",tags:["R4","v1"],status:"planned",measured:"pending. The R4 soak script and the scripted EC2 session in scripts/aws/ still need writing.",
+M({unit:"1a",id:"m8",n:8,title:"Ship v1",tags:["R4","v1"],status:"planned",measured:"pending. The session plan is in scripts/aws/sessions/v1.md (smoke ~2–3 h on the L4, official ~7–7.5 h on one H100, S4 alone ~4 h); the R4 soak script and the session scripts still need writing.",
 obj:["List the release gate","Plan the one EC2 session that produces all v1 numbers","Know what goes in the write-up"],
 lesson:`<p>v1 is done when every gate and robustness test passes, the <b>R4 soak</b> holds steady for 1–2 hours, and S0–S6 are measured on one H100 (p5.4xlarge) in one scripted session.</p>
 <p><b>The EC2 session.</b> One g6.xlarge run (~2–3 hours) tests all CUDA-only code at once: M5b and M5c against the reference under G1b, then S5 part C. Then one p5.4xlarge session runs S0–S6 from their milestone tags and records the G2 baseline. Every script is ready before the instance starts.</p>

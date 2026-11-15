@@ -13,7 +13,7 @@ Full roadmap, in build order: [`docs/distributed_inference_plan.md`](docs/distri
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Setup: budget, AWS G-quota, Llama access, dev env | In progress: budget and quotas (decisions 20, 21) open |
-| 1a | Core engine M0–M6 (KV cache, server, batching, continuous batching, paged KV, prefix caching) → **v1** | M0–M6 built and tagged `m0`–`m6`; S0–S6 scripts ready, EC2 runs pending; R4 soak and AWS session scripts not written |
+| 1a | Core engine M0–M6 (KV cache, server, batching, continuous batching, paged KV, prefix caching) → **v1** | M0–M6 built and tagged `m0`–`m6`; S0–S6 scripts ready, EC2 runs pending; session plan in `scripts/aws/sessions/v1.md` (~7 h on one H100); R4 soak and session scripts not written |
 | 1b | M7–M10 (chunked prefill, CUDA graphs, quantization, speculative decoding) → v1.1 | — |
 | 2 | Distributed on one node (TP, router, P/D disaggregation, KV tiering, reliability) | — |
 | 3 | Multi-node cluster and cluster-scale prompt caching | — |

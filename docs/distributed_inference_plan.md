@@ -151,6 +151,9 @@ an editor; nothing runs on it.
 - Compare against Hugging Face on the same device only, never across devices.
 - Platform-specific dependency pins, so FlashInfer installs only on Linux/CUDA.
 
+**Session plan:** `scripts/aws/sessions/v1.md` lists both v1 sessions step by step with time estimates
+(smoke ~2–3 h on the g6.xlarge, official ~7–7.5 h on the p5.4xlarge, S4 alone ~4 h).
+
 **Study hardware (decided 2026-10-11, revised 2026-11-14):** development and smoke runs on a g6.xlarge. Phase 1 studies run together in
 scripted GPU sessions: once at v1 ship (S0–S6), once at the end of Phase 1 (S0–S10), on one H100
 (p5.4xlarge, decision 25; no L4 first pass). To make that work:

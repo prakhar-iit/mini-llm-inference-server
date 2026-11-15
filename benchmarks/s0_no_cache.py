@@ -6,8 +6,8 @@ This script measures:
 1. step time vs sequence length: one forward over L tokens, for L in --lengths;
 2. cumulative time to generate N tokens from a short prompt, to show the total is quadratic.
 
-Writes results/s0_<tag>.csv and results/s0_<tag>.png. Smoke-run numbers (tiny model) are for checking the shape
-only; the study's numbers come from the L4 (see the plan's dev tiers).
+Writes results/s0_<tag>.csv and results/s0_<tag>.png. Smoke-run numbers (tiny model, or the 8B on the L4) are for
+checking the shape only; the study's numbers come from the H100 (decision 25).
 
     python benchmarks/s0_no_cache.py --model-dir models/Llama-3.1-8B
     python benchmarks/s0_no_cache.py --tiny            # random tiny model, smoke test
